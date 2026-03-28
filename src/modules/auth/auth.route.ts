@@ -1,0 +1,21 @@
+import { Router } from "express";
+// import authController from "./auth.controller";
+import { protect, restrictTo } from "../../middleware/auth.middleware";
+
+const router = Router();
+
+// router.post("/signup", authController.signUp);
+// router.post("/login", authController.login);
+// router.post("/refresh-token", authController.refreshToken);
+// router.post("/validate-token", authController.validateToken);
+// router.post("/forgot-password", authController.forgotPassword);
+// router.post("/reset-password", authController.resetPassword);
+
+// router.use(protect);
+// router.post("/change-password", authController.changePassword);
+
+// NOT Needed probably
+// router.use(restrictTo("ADMIN"));
+// router.post("/revoke-tokens", authController.revokeTokens);
+
+export default router;

@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//////////////////////
+// ENUMS
+//////////////////////
+
+enum UserRole {
+  STUDENT
+  MENTOR
+  GRADUATE
+  SYSTEM_ADMIN
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ProjectStatus {
+  DRAFT
+  SUBMITTED
+  PUBLISHED
+  COMPLETED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  APPROVED
+  NEEDS_REVISION
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum RegistrationMethod {
+  EMAIL
+  UNIVERSITY_API
+  GOOGLE
+  LINKEDIN
+}
+
+enum IdeaType {
+  FREE
+  PAID
+}
+
+//////////////////////
+// CORE STRUCTURE
+//////////////////////
+
+model University {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  country     String?
+  apiEndpoint String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  colleges    College[]
+  users       User[]
+  projects    GraduationProject[]
+}
+
+model College {
+  id           String   @id @default(uuid())
+  name         String
+  code         String
+  universityId String
+  createdAt    DateTime @default(now())
+
+  university   University   @relation(fields: [universityId], references: [id])
+  departments  Department[]
+  users        User[]                  // ← ADDED
+
+  @@unique([universityId, code])
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String
+  code      String
+  collegeId String
+  createdAt DateTime @default(now())
+
+  college   College  @relation(fields: [collegeId], references: [id])
+  users     User[]                     // ← ADDED
+
+  @@unique([collegeId, code])
+}
+
+//////////////////////
+// USERS
+//////////////////////
+
+model User {
+  id                   String              @id @default(uuid())
+  username             String              @unique
+  email                String              @unique
+  passwordHash         String?
+  firstName            String
+  lastName             String
+  role                 UserRole
+  registrationMethod   RegistrationMethod
+  isActive             Boolean             @default(false)
+  isVerified           Boolean             @default(false)
+
+  universityId         String?
+  collegeId            String?
+  departmentId         String?
+
+  profilePictureUrl    String?
+  bio                  String?
+  phone                String?
+
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  lastLogin            DateTime?
+  emailVerifiedAt      DateTime?
+
+  university           University?         @relation(fields: [universityId], references: [id])
+  college              College?            @relation(fields: [collegeId], references: [id])
+  department           Department?         @relation(fields: [departmentId], references: [id])
+
+  academicProfile      AcademicProfile?
+  createdProjects      GraduationProject[] @relation("CreatedProjects")
+}
+
+model AcademicProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  studentId        String?
+  major            String?
+  specialization   String?
+  gpa              Float?
+  graduationYear   Int?
+
+  cvUrl            String?
+  linkedinUrl      String?
+  githubUrl        String?
+  portfolioUrl     String?
+
+  skills           String[]
+  bio              String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id])
+}
+
+//////////////////////
+// PROJECTS
+//////////////////////
+
+model GraduationProject {
+  id             String        @id @default(uuid())
+  title          String
+  summary        String
+  description    String?
+  status         ProjectStatus @default(DRAFT)
+  ideaType       IdeaType      @default(FREE)
+  price          Float         @default(0)
+
+  createdById    String
+  createdBy      User          @relation("CreatedProjects", fields: [createdById], references: [id])
+
+  universityId   String?
+  collegeId      String?
+  departmentId   String?
+
+  university     University?   @relation(fields: [universityId], references: [id])  // ← ADDED
+
+  technologies   String[]
+  requiredSkills String[]
+
+  isPublished    Boolean       @default(false)
+  isApproved     Boolean       @default(false)
+
+  viewsCount     Int           @default(0)
+  savesCount     Int           @default(0)
+  purchaseCount  Int           @default(0)
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  details        ProjectDetail?
+  files          ProjectFile[]
+}
+
+model ProjectDetail {
+  id                    String   @id @default(uuid())
+  projectId             String   @unique
+  detailedDescription   String?
+  implementationGuide   String?
+  deliverables          String[]
+  documentationUrl      String?
+
+  project               GraduationProject @relation(fields: [projectId], references: [id])
+}
+
+model ProjectFile {
+  id          String   @id @default(uuid())
+  projectId   String
+  fileName    String
+  fileUrl     String
+  fileType    String?
+  fileSize    BigInt?
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+
+  project     GraduationProject @relation(fields: [projectId], references: [id])
+}

@@ -1,0 +1,69 @@
+doctype html
+html
+    head
+        style.
+            .email-container {
+                max-width: 600px;
+                margin: 0 auto;
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333333;
+            }
+            .header {
+                background-color: #4a90e2;
+                color: white;
+                padding: 20px;
+                text-align: center;
+                border-radius: 5px 5px 0 0;
+            }
+            .content {
+                padding: 20px;
+                background-color: #ffffff;
+                border: 1px solid #dddddd;
+                border-radius: 0 0 5px 5px;
+            }
+            .field {
+                margin-bottom: 15px;
+            }
+            .field-label {
+                font-weight: bold;
+                color: #666666;
+            }
+            .message-box {
+                background-color: #f5f5f5;
+                padding: 15px;
+                border-radius: 5px;
+                margin-top: 10px;
+            }
+            .footer {
+                text-align: center;
+                margin-top: 20px;
+                font-size: 0.8em;
+                color: #999999;
+            }
+    body
+        .email-container
+            .header
+                h2= subject
+            .content
+                .field
+                    span.field-label From:
+                    div= name
+                .field
+                    span.field-label Email:
+                    div= contact.email
+                if contact.phone
+                    .field
+                        span.field-label Phone:
+                        div= contact.phone
+                .field
+                    span.field-label Company/Business:
+                    div= contact.company
+                .field
+                    span.field-label Service Interested In:
+                    div= contact.service
+                .field
+                    span.field-label Message:
+                    div.message-box= contact.message
+                .footer
+                    This message was sent from BBD contact form.
