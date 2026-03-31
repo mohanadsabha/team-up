@@ -12,6 +12,12 @@ interface ContactFormData {
   message: string;
 }
 
+interface ResetPasswordEmailData {
+  to: string;
+  name: string;
+  resetUrl: string;
+}
+
 class Email {
   private from?: string;
   private to?: string;
@@ -77,6 +83,15 @@ class Email {
         contact: contactData,
       },
     );
+  }
+
+  async sendPasswordReset(data: ResetPasswordEmailData) {
+    this.from = process.env.EMAIL;
+    this.to = data.to;
+    this.name = data.name;
+    await this.send("resetPassword", "Reset your password", {
+      resetUrl: data.resetUrl,
+    });
   }
 }
 

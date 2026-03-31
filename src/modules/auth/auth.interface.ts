@@ -2,59 +2,87 @@ import z, { ZodType } from "zod";
 
 export type StringObject = Record<string, unknown>;
 
+const userRoleSchema = z.enum(["STUDENT", "MENTOR", "GRADUATE"]);
+
+export const signUpSchema = z.object({
+  username: z.string().trim().min(3).max(32),
+  email: z.string().trim().email(),
+  password: z.string().min(8).max(32),
+  firstName: z.string().trim().min(2).max(50),
+  lastName: z.string().trim().min(2).max(50),
+  role: userRoleSchema.default("STUDENT"),
+}) satisfies ZodType;
+
+export type SignUp = z.infer<typeof signUpSchema>;
+
 export type Login = {
   email: string;
   password: string;
 };
 
-export type LoginResponse = {
+export type AuthUser = {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  isActive: boolean;
+  isVerified: boolean;
+  lastLogin: Date | null;
+};
+
+export type AuthTokenResponse = {
   success: boolean;
+  message: string;
   token: string;
-  // you can make the token as object and give more information with it
+  user: AuthUser;
 };
 
 export const loginSchema = z.object({
-  email: z.email(),
+  email: z.string().trim().email(),
   password: z.string().min(8).max(32),
 }) satisfies ZodType;
 
-// Importnant for other modules => LOOK DOWN THERE!
-// The above implmenetation is just for auth but for other modules you should use as the example below.
+export const tokenSchema = z.object({
+  token: z.string().trim().min(1),
+}) satisfies ZodType;
 
-/*
- ** The following is an example for other modules
- */
+export type TokenBody = z.infer<typeof tokenSchema>;
 
-// Syntax Example for a Zod schema that is used to validate in zod.util.ts
-export const createProject = z.object({
-  title: z.string().min(2, "Title must be at least 2 characters long"),
-  url: z.url("Invalid URL format"),
-  image: z.string().optional(),
-  category: z
-    .array(
-      z
-        .string()
-        .min(2, "Category must have at least 2 characters")
-        .max(30, "Category cannot exceed 30 characters"),
-    )
-    .nonempty("At least one category is required"),
-  service: z
-    .enum([
-      "Graphic Design",
-      "Web Development",
-      "Design & Branding",
-      "App Development",
-      "Filming & Editing",
-      "UI/UX Design",
-      "Visual Identity",
-      "Custom Software Solutions",
-      "Marketing Consulting",
-    ])
-    .optional(),
-});
-export const updateProject = createProject.partial(); // This makes all fields optional for update operations
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email(),
+}) satisfies ZodType;
 
-// These types are used for Request interface, example: Request<StringObject, StringObject, CreateProject>
-// for create operations and Request<StringObject, StringObject, UpdateProject> for update operations
-export type CreateProject = z.infer<typeof createProject>;
-export type UpdateProject = z.infer<typeof updateProject>;
+export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z.object({
+  token: z.string().trim().min(1),
+  newPassword: z.string().min(8).max(32),
+}) satisfies ZodType;
+
+export type ResetPassword = z.infer<typeof resetPasswordSchema>;
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(8).max(32),
+  newPassword: z.string().min(8).max(32),
+}) satisfies ZodType;
+
+export type ChangePassword = z.infer<typeof changePasswordSchema>;
+
+export const revokeTokensSchema = z.object({
+  userId: z.string().trim().uuid(),
+}) satisfies ZodType;
+
+export type RevokeTokens = z.infer<typeof revokeTokensSchema>;
+
+export type MessageResponse = {
+  success: boolean;
+  message: string;
+};
+
+export type ValidateTokenResponse = {
+  success: boolean;
+  valid: boolean;
+  user?: AuthUser;
+};
