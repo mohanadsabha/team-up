@@ -20,6 +20,7 @@ import {
   TokenBody,
   tokenSchema,
   ValidateTokenResponse,
+  VerifyEmail,
 } from "./auth.interface";
 import AppError from "../../utils/appError";
 import { signJWT, verifyJWT } from "../../utils/jwt.util";
@@ -32,6 +33,12 @@ import { emailService } from "../../utils/email";
 type PasswordResetTokenPayload = JwtPayload & {
   userId: string;
   checksum: string;
+};
+
+type EmailVerificationTokenPayload = JwtPayload & {
+  userId: string;
+  email: string;
+  purpose: "verify-email";
 };
 
 class AuthController {
@@ -94,6 +101,22 @@ class AuthController {
     );
   }
 
+  private isEmailVerificationTokenPayload(
+    payload: unknown,
+  ): payload is EmailVerificationTokenPayload {
+    if (!payload || typeof payload !== "object") {
+      return false;
+    }
+    return (
+      "userId" in payload &&
+      "email" in payload &&
+      "purpose" in payload &&
+      payload.purpose === "verify-email" &&
+      typeof payload.userId === "string" &&
+      typeof payload.email === "string"
+    );
+  }
+
   public async signUp(
     req: Request<StringObject, StringObject, SignUp>,
     res: Response<AuthTokenResponse>,
@@ -127,6 +150,25 @@ class AuthController {
         isVerified: false,
         lastLogin: now,
       },
+    });
+
+    const verificationToken = sign(
+      {
+        userId: user.id,
+        email: user.email,
+        purpose: "verify-email",
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1d" as StringValue,
+      },
+    );
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+    await emailService.sendEmailVerification({
+      to: user.email,
+      name: user.firstName,
+      verificationUrl,
     });
 
     const token = signJWT({ userId: user.id, role: user.role });
@@ -243,6 +285,42 @@ class AuthController {
     });
   }
 
+  public async verifyEmail(
+    req: Request<StringObject, StringObject, VerifyEmail>,
+    res: Response<MessageResponse>,
+    _next: NextFunction,
+  ) {
+    const payload = zodValidation(tokenSchema, req.body);
+    const decodedToken = verify(payload.token, process.env.JWT_SECRET);
+
+    if (!this.isEmailVerificationTokenPayload(decodedToken)) {
+      throw new AppError("Invalid verification token.", 401);
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decodedToken.userId },
+    });
+
+    if (!user || user.email !== decodedToken.email) {
+      throw new AppError("Invalid verification token.", 401);
+    }
+
+    if (!user.isVerified || !user.emailVerifiedAt) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isVerified: true,
+          emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+        },
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Email verified successfully.",
+    });
+  }
+
   public async forgotPassword(
     req: Request<StringObject, StringObject, ForgotPassword>,
     res: Response<MessageResponse>,
@@ -309,8 +387,6 @@ class AuthController {
       where: { id: user.id },
       data: {
         passwordHash,
-        isVerified: true,
-        emailVerifiedAt: new Date(),
         lastLogin: new Date(),
       },
     });

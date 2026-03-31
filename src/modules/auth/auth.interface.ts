@@ -49,6 +49,7 @@ export const tokenSchema = z.object({
 }) satisfies ZodType;
 
 export type TokenBody = z.infer<typeof tokenSchema>;
+export type VerifyEmail = TokenBody;
 
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().email(),
