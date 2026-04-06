@@ -36,6 +36,7 @@ export type AuthTokenResponse = {
   success: boolean;
   message: string;
   token: string;
+  verificationToken?: string;
   user: AuthUser;
 };
 
@@ -80,6 +81,10 @@ export type RevokeTokens = z.infer<typeof revokeTokensSchema>;
 export type MessageResponse = {
   success: boolean;
   message: string;
+};
+
+export type ForgotPasswordResponse = MessageResponse & {
+  resetToken?: string;
 };
 
 export type ValidateTokenResponse = {

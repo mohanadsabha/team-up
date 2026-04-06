@@ -10,6 +10,7 @@ import {
   Login,
   loginSchema,
   MessageResponse,
+  ForgotPasswordResponse,
   ResetPassword,
   resetPasswordSchema,
   RevokeTokens,
@@ -66,7 +67,9 @@ class AuthController {
     };
   }
 
-  private extractBearerToken(req: { headers: Request["headers"] }): string | undefined {
+  private extractBearerToken(req: {
+    headers: Request["headers"];
+  }): string | undefined {
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer ")
@@ -117,11 +120,11 @@ class AuthController {
     );
   }
 
-  public async signUp(
+  public signUp = async (
     req: Request<StringObject, StringObject, SignUp>,
     res: Response<AuthTokenResponse>,
     _next: NextFunction,
-  ) {
+  ) => {
     const payload = zodValidation(signUpSchema, req.body);
 
     const existingUser = await prisma.user.findFirst({
@@ -177,15 +180,16 @@ class AuthController {
       success: true,
       message: "Account created successfully.",
       token,
+      verificationToken,
       user: this.sanitizeUser(user),
     });
-  }
+  };
 
-  public async login(
+  public login = async (
     req: Request<StringObject, StringObject, Login>,
     res: Response<AuthTokenResponse>,
     _next: NextFunction,
-  ) {
+  ) => {
     const payload = zodValidation(loginSchema, req.body);
 
     const user = await prisma.user.findUnique({
@@ -204,6 +208,9 @@ class AuthController {
     if (!user.isActive) {
       throw new AppError("Your account is not active yet.", 403);
     }
+    if (!user.isVerified) {
+      throw new AppError("Please verify your email before logging in.", 403);
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
@@ -217,15 +224,22 @@ class AuthController {
       token,
       user: this.sanitizeUser(updatedUser),
     });
-  }
+  };
 
-  public async refreshToken(
-    req: Request<StringObject, StringObject, TokenBody>,
+  public refreshToken = async (
+    req: Request<StringObject, StringObject, Partial<TokenBody>>,
     res: Response<AuthTokenResponse>,
     _next: NextFunction,
-  ) {
-    const payload = zodValidation(tokenSchema, req.body);
-    const decoded = await verifyJWT(payload.token);
+  ) => {
+    const bodyToken = req.body?.token;
+    const bearerToken = this.extractBearerToken(req);
+    let token = bodyToken || bearerToken;
+
+    if (!token) {
+      throw new AppError("Token is required.", 400);
+    }
+
+    const decoded = await verifyJWT(token);
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
@@ -237,6 +251,9 @@ class AuthController {
     if (!user.isActive) {
       throw new AppError("Your account is not active yet.", 403);
     }
+    if (!user.isVerified) {
+      throw new AppError("Please verify your email before continuing.", 403);
+    }
 
     this.ensureTokenNotRevoked(decoded.iat, user.lastLogin);
 
@@ -245,20 +262,20 @@ class AuthController {
       data: { lastLogin: new Date() },
     });
 
-    const token = signJWT({ userId: updatedUser.id, role: updatedUser.role });
+    token = signJWT({ userId: updatedUser.id, role: updatedUser.role });
     res.status(200).json({
       success: true,
       message: "Token refreshed successfully.",
       token,
       user: this.sanitizeUser(updatedUser),
     });
-  }
+  };
 
-  public async validateToken(
+  public validateToken = async (
     req: Request<StringObject, StringObject, Partial<TokenBody>>,
     res: Response<ValidateTokenResponse>,
     _next: NextFunction,
-  ) {
+  ) => {
     const bodyToken = req.body?.token;
     const bearerToken = this.extractBearerToken(req);
     const token = bodyToken || bearerToken;
@@ -275,6 +292,9 @@ class AuthController {
     if (!user) {
       throw new AppError("Token is invalid.", 401);
     }
+    if (!user.isVerified) {
+      throw new AppError("Please verify your email before continuing.", 403);
+    }
 
     this.ensureTokenNotRevoked(decoded.iat, user.lastLogin);
 
@@ -283,13 +303,13 @@ class AuthController {
       valid: true,
       user: this.sanitizeUser(user),
     });
-  }
+  };
 
-  public async verifyEmail(
+  public verifyEmail = async (
     req: Request<StringObject, StringObject, VerifyEmail>,
     res: Response<MessageResponse>,
     _next: NextFunction,
-  ) {
+  ) => {
     const payload = zodValidation(tokenSchema, req.body);
     const decodedToken = verify(payload.token, process.env.JWT_SECRET);
 
@@ -319,14 +339,15 @@ class AuthController {
       success: true,
       message: "Email verified successfully.",
     });
-  }
+  };
 
-  public async forgotPassword(
+  public forgotPassword = async (
     req: Request<StringObject, StringObject, ForgotPassword>,
-    res: Response<MessageResponse>,
+    res: Response<ForgotPasswordResponse>,
     _next: NextFunction,
-  ) {
+  ) => {
     const payload = zodValidation(forgotPasswordSchema, req.body);
+    let resetToken: string | undefined;
 
     const user = await prisma.user.findUnique({
       where: { email: payload.email },
@@ -334,13 +355,9 @@ class AuthController {
 
     if (user && user.passwordHash) {
       const checksum = user.passwordHash.slice(-12);
-      const resetToken = sign(
-        { userId: user.id, checksum },
-        process.env.JWT_SECRET,
-        {
-          expiresIn: "15m" as StringValue,
-        },
-      );
+      resetToken = sign({ userId: user.id, checksum }, process.env.JWT_SECRET, {
+        expiresIn: "15m" as StringValue,
+      });
       const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
       await emailService.sendPasswordReset({
@@ -352,16 +369,17 @@ class AuthController {
 
     res.status(200).json({
       success: true,
+      resetToken,
       message:
         "If an account with this email exists, a password reset link was sent.",
     });
-  }
+  };
 
-  public async resetPassword(
+  public resetPassword = async (
     req: Request<StringObject, StringObject, ResetPassword>,
     res: Response<AuthTokenResponse>,
     _next: NextFunction,
-  ) {
+  ) => {
     const payload = zodValidation(resetPasswordSchema, req.body);
     const decodedToken = verify(payload.token, process.env.JWT_SECRET);
 
@@ -398,13 +416,13 @@ class AuthController {
       token,
       user: this.sanitizeUser(updatedUser),
     });
-  }
+  };
 
-  public async changePassword(
+  public changePassword = async (
     req: Request<StringObject, StringObject, ChangePassword>,
     res: Response<AuthTokenResponse>,
     _next: NextFunction,
-  ) {
+  ) => {
     const payload = zodValidation(changePasswordSchema, req.body);
 
     const user = await prisma.user.findUnique({
@@ -423,7 +441,10 @@ class AuthController {
       throw new AppError("Current password is incorrect.", 401);
     }
 
-    const isSamePassword = await compare(payload.newPassword, user.passwordHash);
+    const isSamePassword = await compare(
+      payload.newPassword,
+      user.passwordHash,
+    );
     if (isSamePassword) {
       throw new AppError(
         "New password must be different from current password.",
@@ -447,13 +468,13 @@ class AuthController {
       token,
       user: this.sanitizeUser(updatedUser),
     });
-  }
+  };
 
-  public async revokeTokens(
+  public revokeTokens = async (
     req: Request<StringObject, StringObject, RevokeTokens>,
     res: Response<MessageResponse>,
     _next: NextFunction,
-  ) {
+  ) => {
     const payload = zodValidation(revokeTokensSchema, req.body);
 
     const targetUser = await prisma.user.findUnique({
@@ -475,7 +496,7 @@ class AuthController {
       success: true,
       message: "All active tokens for this user have been revoked.",
     });
-  }
+  };
 }
 
 export const authController = new AuthController();
