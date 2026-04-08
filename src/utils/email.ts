@@ -12,6 +12,18 @@ interface ContactFormData {
   message: string;
 }
 
+interface ResetPasswordEmailData {
+  to: string;
+  name: string;
+  resetUrl: string;
+}
+
+interface VerifyEmailData {
+  to: string;
+  name: string;
+  verificationUrl: string;
+}
+
 class Email {
   private from?: string;
   private to?: string;
@@ -77,6 +89,24 @@ class Email {
         contact: contactData,
       },
     );
+  }
+
+  async sendPasswordReset(data: ResetPasswordEmailData) {
+    this.from = process.env.EMAIL;
+    this.to = data.to;
+    this.name = data.name;
+    await this.send("resetPassword", "Reset your password", {
+      resetUrl: data.resetUrl,
+    });
+  }
+
+  async sendEmailVerification(data: VerifyEmailData) {
+    this.from = process.env.EMAIL;
+    this.to = data.to;
+    this.name = data.name;
+    await this.send("verifyEmail", "Verify your email address", {
+      verificationUrl: data.verificationUrl,
+    });
   }
 }
 

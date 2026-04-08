@@ -6,6 +6,7 @@ import helmet from "helmet";
 import hpp from "hpp";
 import compression from "compression";
 import xssShield from "xss-shield/build/main/lib/xssShield";
+import authRoutes from "./modules/auth/auth.route";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -41,7 +42,13 @@ app.use(hpp());
 app.use(compression());
 
 // Routes
-// app.use("/api/v1/auth", authRoutes);
+app.use("/api/health", (req: Request, res: Response) => {
+  res.status(200).json({
+    status: "success",
+    message: "Server is healthy",
+  });
+});
+app.use("/api/v1/auth", authRoutes);
 
 // Unhandled routes
 app.use((req: Request, res: Response, next: NextFunction) => {

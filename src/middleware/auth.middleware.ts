@@ -41,6 +41,22 @@ export const protect = async (
       ),
     );
   }
+  if (!user.isVerified) {
+    return next(
+      new AppError(
+        "Please verify your email before accessing protected resources.",
+        403,
+      ),
+    );
+  }
+  if (decoded.iat && user.lastLogin) {
+    const revokedBefore = Math.floor(user.lastLogin.getTime() / 1000);
+    if (decoded.iat < revokedBefore) {
+      return next(
+        new AppError("Token has been revoked. Please log in again.", 401),
+      );
+    }
+  }
 
   // Grant access
   req.user = decoded;
