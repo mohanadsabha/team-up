@@ -43,83 +43,6 @@ type EmailVerificationTokenPayload = JwtPayload & {
 };
 
 class AuthController {
-  private sanitizeUser(user: {
-    id: string;
-    username: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-    isActive: boolean;
-    isVerified: boolean;
-    lastLogin: Date | null;
-  }): AuthUser {
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      isActive: user.isActive,
-      isVerified: user.isVerified,
-      lastLogin: user.lastLogin,
-    };
-  }
-
-  private extractBearerToken(req: {
-    headers: Request["headers"];
-  }): string | undefined {
-    if (
-      req.headers.authorization &&
-      req.headers.authorization.startsWith("Bearer ")
-    ) {
-      return req.headers.authorization.split(" ")[1];
-    }
-    return undefined;
-  }
-
-  private ensureTokenNotRevoked(iat?: number, lastLogin?: Date | null) {
-    if (!iat || !lastLogin) {
-      return;
-    }
-    const tokenIssuedAt = iat;
-    const revokeBefore = Math.floor(lastLogin.getTime() / 1000);
-    if (tokenIssuedAt < revokeBefore) {
-      throw new AppError("Token has been revoked. Please log in again.", 401);
-    }
-  }
-
-  private isPasswordResetTokenPayload(
-    payload: unknown,
-  ): payload is PasswordResetTokenPayload {
-    if (!payload || typeof payload !== "object") {
-      return false;
-    }
-    return (
-      "userId" in payload &&
-      "checksum" in payload &&
-      typeof payload.userId === "string" &&
-      typeof payload.checksum === "string"
-    );
-  }
-
-  private isEmailVerificationTokenPayload(
-    payload: unknown,
-  ): payload is EmailVerificationTokenPayload {
-    if (!payload || typeof payload !== "object") {
-      return false;
-    }
-    return (
-      "userId" in payload &&
-      "email" in payload &&
-      "purpose" in payload &&
-      payload.purpose === "verify-email" &&
-      typeof payload.userId === "string" &&
-      typeof payload.email === "string"
-    );
-  }
-
   public signUp = async (
     req: Request<StringObject, StringObject, SignUp>,
     res: Response<AuthTokenResponse>,
@@ -497,6 +420,87 @@ class AuthController {
       message: "All active tokens for this user have been revoked.",
     });
   };
+
+  /*
+  ** Helper Methods
+  */
+
+  private sanitizeUser(user: {
+    id: string;
+    username: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    isActive: boolean;
+    isVerified: boolean;
+    lastLogin: Date | null;
+  }): AuthUser {
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+      isVerified: user.isVerified,
+      lastLogin: user.lastLogin,
+    };
+  }
+
+  private extractBearerToken(req: {
+    headers: Request["headers"];
+  }): string | undefined {
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer ")
+    ) {
+      return req.headers.authorization.split(" ")[1];
+    }
+    return undefined;
+  }
+
+  private ensureTokenNotRevoked(iat?: number, lastLogin?: Date | null) {
+    if (!iat || !lastLogin) {
+      return;
+    }
+    const tokenIssuedAt = iat;
+    const revokeBefore = Math.floor(lastLogin.getTime() / 1000);
+    if (tokenIssuedAt < revokeBefore) {
+      throw new AppError("Token has been revoked. Please log in again.", 401);
+    }
+  }
+
+  private isPasswordResetTokenPayload(
+    payload: unknown,
+  ): payload is PasswordResetTokenPayload {
+    if (!payload || typeof payload !== "object") {
+      return false;
+    }
+    return (
+      "userId" in payload &&
+      "checksum" in payload &&
+      typeof payload.userId === "string" &&
+      typeof payload.checksum === "string"
+    );
+  }
+
+  private isEmailVerificationTokenPayload(
+    payload: unknown,
+  ): payload is EmailVerificationTokenPayload {
+    if (!payload || typeof payload !== "object") {
+      return false;
+    }
+    return (
+      "userId" in payload &&
+      "email" in payload &&
+      "purpose" in payload &&
+      payload.purpose === "verify-email" &&
+      typeof payload.userId === "string" &&
+      typeof payload.email === "string"
+    );
+  }
 }
 
 export const authController = new AuthController();
