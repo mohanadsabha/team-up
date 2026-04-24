@@ -5,8 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 //////////////////////
@@ -134,6 +132,10 @@ model User {
   updatedAt            DateTime            @updatedAt
   lastLogin            DateTime?
   emailVerifiedAt      DateTime?
+  statusChangedAt      DateTime?
+  statusChangedById    String?
+  statusChangeReason   String?
+  deactivatedAt        DateTime?
 
   university           University?         @relation(fields: [universityId], references: [id])
   college              College?            @relation(fields: [collegeId], references: [id])
