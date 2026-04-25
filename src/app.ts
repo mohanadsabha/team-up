@@ -7,6 +7,7 @@ import hpp from "hpp";
 import compression from "compression";
 import xssShield from "xss-shield/build/main/lib/xssShield";
 import authRoutes from "./modules/auth/auth.route";
+import userRoutes from "./modules/user/user.route";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -49,6 +50,7 @@ app.use("/api/health", (req: Request, res: Response) => {
   });
 });
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/users", userRoutes);
 
 // Unhandled routes
 app.use((req: Request, res: Response, next: NextFunction) => {

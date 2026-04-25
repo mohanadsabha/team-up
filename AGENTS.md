@@ -1,40 +1,46 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-- `src/server.ts` starts the process and HTTP server; `src/app.ts` registers middleware and routes.
-- Put feature code in `src/modules/<feature>/` using the existing pattern: `*.controller.ts`, `*.route.ts`, and `*.interface.ts`.
-- Keep shared infrastructure in `src/config/` (dotenv, Prisma, Cloudinary, Multer), `src/middleware/`, `src/utils/`, and `src/types/`.
-- Store email/view templates in `src/templates/` (`.pug` files are copied during build).
-- Keep data model changes in `prisma/schema.prisma` and commit generated SQL under `prisma/migrations/`.
+## Project Context
 
-## Build, Test, and Development Commands
+- Product/domain overview is documented in `README.md`. Keep this file focused on implementation behavior for coding agents.
+
+## Architecture & Module Boundaries
+
+- Entry points: `src/server.ts` starts the process/server; `src/app.ts` wires middleware, routes, and global error handling.
+- Feature modules live in `src/modules/<feature>/` and follow: `*.controller.ts`, `*.route.ts`, `*.interface.ts`.
+- Shared infrastructure lives in `src/config/`, `src/middleware/`, `src/utils/`, and `src/types/`.
+- Templates live in `src/templates/` (`.pug`), copied to `dist/` during build.
+- Data model changes belong in `prisma/schema.prisma`; generated SQL migrations must be committed in `prisma/migrations/`.
+
+## Build & Verification
+
 - `npm install`: install dependencies.
-- `npm run dev`: run the API in watch mode with `tsx`.
-- `npm run type-check`: run TypeScript checks without emitting files.
-- `npm run format`: apply Prettier formatting to `src/**/*.ts`.
-- `npm run build`: clean `dist/`, compile TypeScript, and copy template/json assets.
-- `npm start`: run the compiled server from `dist/server.js`.
-- `npx prisma migrate dev`: create/apply local migrations during schema work.
-- `npx prisma generate`: regenerate Prisma client after schema changes.
+- `npm run dev`: run API in watch mode (`tsx watch src/server.ts`).
+- `npm run type-check`: run TypeScript checks without emitting.
+- `npm run build`: clean `dist/`, compile TypeScript, copy template/json assets.
+- `npm start`: run compiled server from `dist/server.js`.
+- `npm run format`: run Prettier on `src/**/*.ts`.
+- Prisma workflow: `npx prisma migrate dev` then `npx prisma generate`.
+- There is no configured test runner yet; minimum validation is `npm run type-check`, `npm run build`, and manual endpoint smoke testing.
 
-## Coding Style & Naming Conventions
-- Use TypeScript with strict compiler options enabled; keep types explicit for public module APIs.
-- Follow Prettier defaults used in the codebase: 2-space indentation, double quotes, trailing commas where valid.
-- Use `PascalCase` for classes/types, `camelCase` for variables/functions, and `UPPER_SNAKE_CASE` for constants.
-- Keep file names lowercase and descriptive (`auth.controller.ts`, `error.middleware.ts`, `jwt.util.ts`).
+## Conventions
 
-## Testing Guidelines
-- There is currently no configured `npm test` runner in this repository.
-- Minimum pre-PR checks: `npm run type-check`, `npm run build`, and manual endpoint smoke testing.
-- Add new tests as `*.test.ts` files (for example, `auth.controller.test.ts`) near the feature they cover.
-- For Prisma changes, verify migration SQL and generated client code before opening a PR.
+- TypeScript is strict; keep public module APIs explicitly typed.
+- Prettier style: 2-space indentation, double quotes, trailing commas where valid.
+- Naming: `PascalCase` for classes/types, `camelCase` for variables/functions, `UPPER_SNAKE_CASE` for constants.
+- File names are lowercase and descriptive (for example `auth.controller.ts`, `error.middleware.ts`, `jwt.util.ts`).
+- API responses follow the existing shape used in controllers (`success`, `message`, and payload fields).
 
-## Commit & Pull Request Guidelines
-- Keep commit messages short and imperative, consistent with history (for example, `Initial Project Setup`, `Revise README ...`).
-- Keep each commit focused on one concern; include schema and migration files in the same change.
-- PRs should include: purpose, affected modules, verification steps run, and linked issue/ticket when available.
-- Include request/response examples for API behavior changes and clearly call out breaking changes.
+## Agent-Critical Gotchas
 
-## Security & Configuration Tips
-- Environment variables are loaded from `config.env` via `src/config/dotenv.ts`; keep secrets out of git.
-- Do not commit runtime artifacts like `dist/` or credentials for database, JWT, email, or cloud providers.
+- Environment variables are required; see `src/types/environment.d.ts` for the expected keys.
+- `src/config/dotenv.ts` currently reads from `./.env`. If environment loading changes, keep docs/code aligned.
+- Express v5 note: `req.query` is made writable in `src/app.ts`; do not remove unless query handling is refactored.
+- Prisma client output is generated under `src/generated/prisma/` (non-default path); avoid importing from other generated locations.
+- Keep runtime artifacts and secrets out of git (`dist/`, database/JWT/email/cloud credentials).
+
+## PR Expectations
+
+- Keep commits small and focused, with imperative commit messages.
+- Include schema and migration changes in the same PR when changing Prisma models.
+- For behavior changes, include verification steps and request/response examples in the PR description.

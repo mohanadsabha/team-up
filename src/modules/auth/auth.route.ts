@@ -4,7 +4,11 @@ import { protect, restrictTo } from "../../middleware/auth.middleware";
 
 const router = Router();
 
-// Required auth routes
+router.post("/dev/system-admin", authController.createDevSystemAdmin);
+router.get("/universities", authController.getUniversities);
+router.get("/colleges", authController.getColleges);
+router.get("/departments", authController.getDepartments);
+
 router.post("/signup", authController.signUp);
 router.post("/login", authController.login);
 router.get("/linkedin/callback", authController.linkedinCallback);
@@ -23,5 +27,18 @@ router.post("/change-password", authController.changePassword);
 // NOT Needed probably
 router.use(restrictTo("SYSTEM_ADMIN"));
 router.post("/revoke-tokens", authController.revokeTokens);
+router.patch("/users/:id/activate", authController.activateUser);
+
+router.post("/universities", authController.createUniversity);
+router.patch("/universities/:id", authController.updateUniversity);
+router.delete("/universities/:id", authController.deleteUniversity);
+
+router.post("/colleges", authController.createCollege);
+router.patch("/colleges/:id", authController.updateCollege);
+router.delete("/colleges/:id", authController.deleteCollege);
+
+router.post("/departments", authController.createDepartment);
+router.patch("/departments/:id", authController.updateDepartment);
+router.delete("/departments/:id", authController.deleteDepartment);
 
 export default router;
