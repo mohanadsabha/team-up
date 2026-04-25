@@ -59,6 +59,7 @@ import { compare, hash } from "bcryptjs";
 import { sign, verify, JwtPayload } from "jsonwebtoken";
 import type { StringValue } from "ms";
 import { emailService } from "../../utils/email";
+import axios from "axios";
 
 type PasswordResetTokenPayload = JwtPayload & {
   userId: string;
@@ -322,6 +323,164 @@ class AuthController {
       success: true,
       message: "Email verified successfully.",
     });
+  public google = async (req: Request, res: Response, _next: NextFunction) => {
+    const scope = encodeURIComponent("openid email profile");
+
+    const url =
+      `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${process.env.GOOGLE_CLIENT_ID}` +
+      `&redirect_uri=${process.env.GOOGLE_REDIRECT_URI}` +
+      `&response_type=code` +
+      `&scope=${scope}` +
+      `&access_type=offline` +
+      `&prompt=consent`;
+
+    res.redirect(url);
+  };
+
+  public linkedin = async (
+    req: Request,
+    res: Response,
+    _next: NextFunction,
+  ) => {
+    const scope = "openid profile email";
+    const redirectUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.LINKEDIN_CLIENT_ID}&redirect_uri=${process.env.LINKEDIN_REDIRECT_URI}&scope=${scope}&state=${process.env.LINKEDIN_STATE}`;
+
+    res.redirect(redirectUrl);
+  };
+
+  public linkedinCallback = async (
+    req: Request,
+    res: Response,
+    _next: NextFunction,
+  ) => {
+    const { code } = req.query;
+    // 1. Exchange code for access token
+    const tokenRes = await axios.post(
+      "https://www.linkedin.com/oauth/v2/accessToken",
+      null,
+      {
+        params: {
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+          client_id: process.env.LINKEDIN_CLIENT_ID,
+          client_secret: process.env.LINKEDIN_CLIENT_SECRET,
+        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      },
+    );
+
+    const access_token = tokenRes.data.access_token;
+
+    // 2. Get user profile (OpenID)
+    const userInfo = await axios.get("https://api.linkedin.com/v2/userinfo", {
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+      },
+    });
+
+    const { sub, email, given_name, family_name } = userInfo.data;
+
+    // 3. Find or create user
+    let user = await prisma.user.findUnique({
+      where: { email: email },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        // role, username, unvirsty....
+        data: {
+          username: sub,
+          email: email,
+          firstName: given_name,
+          lastName: family_name,
+          role: "STUDENT",
+          registrationMethod: "LINKEDIN",
+          isActive: true,
+          isVerified: true,
+          lastLogin: new Date(),
+        },
+      });
+    }
+
+    // 4. Create JWT
+    const token = signJWT({ userId: user.id, role: user.role });
+
+    // 5. Redirect to frontend
+    res
+      .cookie("accessToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      })
+      .redirect(`http://localhost:3000/oauth-success`);
+  };
+
+  public googleCallback = async (
+    req: Request,
+    res: Response,
+    _next: NextFunction,
+  ) => {
+    const { code } = req.query;
+    // 1. Exchange code for token
+    const tokenRes = await axios.post("https://oauth2.googleapis.com/token", {
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      grant_type: "authorization_code",
+    });
+
+    const { access_token } = tokenRes.data;
+
+    // 2. Get user profile (OpenID)
+    const userRes = await axios.get(
+      "https://www.googleapis.com/oauth2/v3/userinfo",
+      {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+      },
+    );
+
+    const { sub, given_name, family_name, email } = userRes.data;
+
+    // 3. Find or create user
+    let user = await prisma.user.findUnique({
+      where: { email: email },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        // role, username, unvirsty....
+        data: {
+          username: sub,
+          email: email,
+          firstName: given_name,
+          lastName: family_name,
+          role: "STUDENT",
+          registrationMethod: "LINKEDIN",
+          isActive: true,
+          isVerified: true,
+          lastLogin: new Date(),
+        },
+      });
+    }
+
+    // 4. Create JWT
+    const token = signJWT({ userId: user.id, role: user.role });
+
+    // 5. Redirect to frontend
+    res
+      .cookie("accessToken", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      })
+      .redirect(`http://localhost:3000/oauth-success`);
   };
 
   public refreshToken = async (
