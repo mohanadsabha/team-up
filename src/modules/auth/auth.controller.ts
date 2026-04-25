@@ -323,6 +323,8 @@ class AuthController {
       success: true,
       message: "Email verified successfully.",
     });
+  };
+
   public google = async (req: Request, res: Response, _next: NextFunction) => {
     const scope = encodeURIComponent("openid email profile");
 
