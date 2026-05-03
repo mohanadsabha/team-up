@@ -383,11 +383,14 @@ class AuthController {
     });
 
     const { sub, email, given_name, family_name } = userInfo.data;
+    const frontendBaseUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
 
     // 3. Find or create user
     let user = await prisma.user.findUnique({
       where: { email: email },
     });
+
+    const isNewUser = !user;
 
     if (!user) {
       user = await prisma.user.create({
@@ -417,7 +420,11 @@ class AuthController {
         sameSite: "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
-      .redirect(`http://localhost:3000/oauth-success`);
+      .redirect(
+        isNewUser
+          ? `${frontendBaseUrl}/auth/oauth/complete-profile?provider=linkedin&firstTime=true&name=${encodeURIComponent(`${given_name} ${family_name}`)}&email=${encodeURIComponent(email)}`
+          : `${frontendBaseUrl}/auth/oauth/success?provider=linkedin&firstTime=false&name=${encodeURIComponent(`${given_name} ${family_name}`)}&email=${encodeURIComponent(email)}`,
+      );
   };
 
   public googleCallback = async (
@@ -436,6 +443,7 @@ class AuthController {
     });
 
     const { access_token } = tokenRes.data;
+    const frontendBaseUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
 
     // 2. Get user profile (OpenID)
     const userRes = await axios.get(
@@ -454,6 +462,8 @@ class AuthController {
       where: { email: email },
     });
 
+    const isNewUser = !user;
+
     if (!user) {
       user = await prisma.user.create({
         // role, username, unvirsty....
@@ -463,7 +473,7 @@ class AuthController {
           firstName: given_name,
           lastName: family_name,
           role: "STUDENT",
-          registrationMethod: "LINKEDIN",
+          registrationMethod: "GOOGLE",
           isActive: true,
           isVerified: true,
           lastLogin: new Date(),
@@ -482,7 +492,11 @@ class AuthController {
         sameSite: "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
-      .redirect(`http://localhost:3000/oauth-success`);
+      .redirect(
+        isNewUser
+          ? `${frontendBaseUrl}/auth/oauth/complete-profile?provider=google&firstTime=true&name=${encodeURIComponent(`${given_name} ${family_name}`)}&email=${encodeURIComponent(email)}`
+          : `${frontendBaseUrl}/auth/oauth/success?provider=google&firstTime=false&name=${encodeURIComponent(`${given_name} ${family_name}`)}&email=${encodeURIComponent(email)}`,
+      );
   };
 
   public refreshToken = async (
