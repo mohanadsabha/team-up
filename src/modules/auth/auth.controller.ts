@@ -549,7 +549,9 @@ class AuthController {
     res: Response<ValidateTokenResponse>,
     _next: NextFunction,
   ) => {
-    const token = req.body?.token;
+    const bodyToken = req.body?.token;
+    const bearerToken = this.extractBearerToken(req);
+    const token = bodyToken || bearerToken;
 
     if (!token) {
       throw new AppError("Token is required.", 400);
