@@ -20,13 +20,12 @@ router.post("/refresh-token", authController.refreshToken);
 router.post("/validate-token", authController.validateToken);
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);
+router.post("/revoke-tokens", authController.revokeTokens);
 
 router.use(protect);
 router.post("/change-password", authController.changePassword);
 
-// NOT Needed probably
 router.use(restrictTo("SYSTEM_ADMIN"));
-router.post("/revoke-tokens", authController.revokeTokens);
 router.patch("/users/:id/activate", authController.activateUser);
 
 router.post("/universities", authController.createUniversity);
