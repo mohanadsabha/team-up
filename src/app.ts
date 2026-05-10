@@ -8,6 +8,17 @@ import compression from "compression";
 import xssShield from "xss-shield/build/main/lib/xssShield";
 import authRoutes from "./modules/auth/auth.route";
 import userRoutes from "./modules/user/user.route";
+import institutionRoutes from "./modules/institution/institution.route";
+import teamRoutes from "./modules/team/team.route";
+import taskRoutes from "./modules/task/task.route";
+import notificationRoutes from "./modules/notification/notification.route";
+import paymentRoutes from "./modules/payment/payment.route";
+import complaintRoutes from "./modules/complaint/complaint.route";
+import projectRoutes from "./modules/project/project.route";
+import mentorInvitationRoutes from "./modules/mentor-invitation/mentor-invitation.route";
+import milestoneRoutes from "./modules/milestone/milestone.route";
+import chatRoutes from "./modules/chat/chat.route";
+import meetingRoutes from "./modules/meeting/meeting.route";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -51,6 +62,17 @@ app.use("/api/health", (req: Request, res: Response) => {
 });
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/institutions", institutionRoutes);
+app.use("/api/v1/teams", teamRoutes);
+app.use("/api/v1/mentor-invitations", mentorInvitationRoutes);
+app.use("/api/v1/projects", projectRoutes);
+app.use("/api/v1/tasks", taskRoutes);
+app.use("/api/v1/milestones", milestoneRoutes);
+app.use("/api/v1/meetings", meetingRoutes);
+app.use("/api/v1/chats", chatRoutes);
+app.use("/api/v1/complaints", complaintRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/payments", paymentRoutes);
 
 // Unhandled routes
 app.use((req: Request, res: Response, next: NextFunction) => {

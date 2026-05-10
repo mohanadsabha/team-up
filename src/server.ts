@@ -6,31 +6,42 @@ process.on("uncaughtException", (err) => {
 });
 
 import app from "./app";
+import { bootstrapMeetingReminders } from "./modules/meeting/meeting-reminder.job";
 
 const PORT = process.env.PORT || 3000;
+const meetingRuntime = bootstrapMeetingReminders();
 
-const server = app.listen(PORT, () => {
-  console.log(`App running on port ${PORT}...`);
-});
+const server = meetingRuntime.runApi
+  ? app.listen(PORT, () => {
+      console.log(`App running on port ${PORT}...`);
+    })
+  : null;
+
+function shutdown(exitCode: number) {
+  meetingRuntime.stop();
+
+  if (!server) {
+    process.exit(exitCode);
+    return;
+  }
+
+  server.close(() => {
+    process.exit(exitCode);
+  });
+}
 
 process.on("unhandledRejection", (err) => {
   console.log("UNHANDLED REJECTION! Shutting down...");
   console.log(err);
-  server.close(() => {
-    process.exit(1);
-  });
+  shutdown(1);
 });
 
 process.on("SIGTERM", () => {
   console.log("👋 SIGTERM RECEIVED. Shutting down gracefully");
-  server.close(() => {
-    console.log("💥 Process terminated!");
-  });
+  shutdown(0);
 });
 
 process.on("SIGINT", () => {
   console.log("👋 SIGINT RECEIVED. Shutting down gracefully");
-  server.close(() => {
-    console.log("💥 Process terminated!");
-  });
+  shutdown(0);
 });

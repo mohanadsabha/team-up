@@ -4,11 +4,8 @@ import { protect, restrictTo } from "../../middleware/auth.middleware";
 
 const router = Router();
 
+// Public endpoints - no authentication required
 router.post("/dev/system-admin", authController.createDevSystemAdmin);
-router.get("/universities", authController.getUniversities);
-router.get("/colleges", authController.getColleges);
-router.get("/departments", authController.getDepartments);
-
 router.post("/signup", authController.signUp);
 router.post("/login", authController.login);
 router.get("/linkedin/callback", authController.linkedinCallback);
@@ -20,24 +17,14 @@ router.post("/refresh-token", authController.refreshToken);
 router.post("/validate-token", authController.validateToken);
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);
-router.post("/revoke-tokens", authController.revokeTokens);
 
+// Protected endpoints - authentication required
 router.use(protect);
 router.post("/change-password", authController.changePassword);
+router.post("/revoke-tokens", authController.revokeTokens);
 
+// Admin endpoints - SYSTEM_ADMIN only
 router.use(restrictTo("SYSTEM_ADMIN"));
 router.patch("/users/:id/activate", authController.activateUser);
-
-router.post("/universities", authController.createUniversity);
-router.patch("/universities/:id", authController.updateUniversity);
-router.delete("/universities/:id", authController.deleteUniversity);
-
-router.post("/colleges", authController.createCollege);
-router.patch("/colleges/:id", authController.updateCollege);
-router.delete("/colleges/:id", authController.deleteCollege);
-
-router.post("/departments", authController.createDepartment);
-router.patch("/departments/:id", authController.updateDepartment);
-router.delete("/departments/:id", authController.deleteDepartment);
 
 export default router;

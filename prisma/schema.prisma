@@ -15,6 +15,7 @@ enum UserRole {
   STUDENT
   MENTOR
   GRADUATE
+  TEAM_ADMIN
   SYSTEM_ADMIN
 }
 
@@ -58,6 +59,52 @@ enum IdeaType {
   PAID
 }
 
+enum TeamMemberRole {
+  TEAM_ADMIN
+  MEMBER
+  MENTOR
+}
+
+enum NotificationType {
+  JOIN_REQUEST_RECEIVED
+  JOIN_REQUEST_ACCEPTED
+  JOIN_REQUEST_REJECTED
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  MILESTONE_STATUS_CHANGED
+  MEETING_REMINDER
+  MESSAGE_RECEIVED
+  PROJECT_APPROVED
+  PROJECT_REJECTED
+  MENTOR_INVITATION_SENT
+  MENTOR_INVITATION_ACCEPTED
+  MENTOR_INVITATION_REJECTED
+}
+
+enum ComplaintStatus {
+  SUBMITTED
+  INVESTIGATING
+  RESOLVED
+}
+
+enum MilestoneStatus {
+  PENDING
+  APPROVED
+  NEEDS_REVISION
+  REJECTED
+}
+
+enum ChatType {
+  TEAM
+  DIRECT
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELED
+}
+
 //////////////////////
 // CORE STRUCTURE
 //////////////////////
@@ -70,11 +117,11 @@ model University {
   apiEndpoint String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime?
 
-  colleges    College[]
-  users       User[]
-  projects    GraduationProject[]
+  colleges College[]
+  users    User[]
+  projects GraduationProject[]
 }
 
 model College {
@@ -83,10 +130,11 @@ model College {
   code         String
   universityId String
   createdAt    DateTime @default(now())
+  updatedAt    DateTime?
 
-  university   University   @relation(fields: [universityId], references: [id])
-  departments  Department[]
-  users        User[]                  // ← ADDED
+  university  University   @relation(fields: [universityId], references: [id])
+  departments Department[]
+  users       User[] // ← ADDED
 
   @@unique([universityId, code])
 }
@@ -97,9 +145,10 @@ model Department {
   code      String
   collegeId String
   createdAt DateTime @default(now())
+  updatedAt DateTime?
 
-  college   College  @relation(fields: [collegeId], references: [id])
-  users     User[]                     // ← ADDED
+  college College @relation(fields: [collegeId], references: [id])
+  users   User[] // ← ADDED
 
   @@unique([collegeId, code])
 }
@@ -109,63 +158,90 @@ model Department {
 //////////////////////
 
 model User {
-  id                   String              @id @default(uuid())
-  username             String              @unique
-  email                String              @unique
-  passwordHash         String?
-  firstName            String
-  lastName             String
-  role                 UserRole
-  registrationMethod   RegistrationMethod
-  isActive             Boolean             @default(false)
-  isVerified           Boolean             @default(false)
+  id                 String             @id @default(uuid())
+  username           String             @unique
+  email              String             @unique
+  passwordHash       String?
+  firstName          String
+  lastName           String
+  role               UserRole
+  registrationMethod RegistrationMethod
+  isActive           Boolean            @default(false)
+  isVerified         Boolean            @default(false)
 
-  universityId         String?
-  collegeId            String?
-  departmentId         String?
+  universityId String?
+  collegeId    String?
+  departmentId String?
 
-  profilePictureUrl    String?
-  bio                  String?
-  phone                String?
+  profilePictureUrl String?
+  bio               String?
+  phone             String?
 
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  lastLogin            DateTime?
-  emailVerifiedAt      DateTime?
-  statusChangedAt      DateTime?
-  statusChangedById    String?
-  statusChangeReason   String?
-  deactivatedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime?
+  lastLogin          DateTime?
+  emailVerifiedAt    DateTime?
+  statusChangedAt    DateTime?
+  statusChangedById  String?
+  statusChangeReason String?
+  deactivatedAt      DateTime?
 
-  university           University?         @relation(fields: [universityId], references: [id])
-  college              College?            @relation(fields: [collegeId], references: [id])
-  department           Department?         @relation(fields: [departmentId], references: [id])
+  university University? @relation(fields: [universityId], references: [id])
+  college    College?    @relation(fields: [collegeId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
 
-  academicProfile      AcademicProfile?
-  createdProjects      GraduationProject[] @relation("CreatedProjects")
+  academicProfile AcademicProfile?
+  createdProjects GraduationProject[] @relation("CreatedProjects")
+
+  // Team relationships
+  teamMemberships TeamMember[]
+  mentorTeams     Team[]
+  assignedTasks   Task[]
+  sentMessages    Message[]
+  createdMeetings Meeting[]    @relation("CreatedMeetings")
+
+  // Notifications & Transactions
+  notifications     Notification[]
+  purchasedProjects Payment[]
+
+  // Complaints
+  reportedComplaints Complaint[]   @relation("ReportedComplaints")
+  receivedComplaints Complaint[]   @relation("ReceivedComplaints")
+  resolvedComplaints Complaint[]   @relation("ResolvedComplaints")
+  joinRequests       JoinRequest[]
+
+  // Milestone reviews
+  reviewedMilestones Milestone[]
+
+  @@index([universityId])
+  @@index([collegeId])
+  @@index([departmentId])
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
 }
 
 model AcademicProfile {
-  id               String   @id @default(uuid())
-  userId           String   @unique
-  studentId        String?
-  major            String?
-  specialization   String?
-  gpa              Float?
-  graduationYear   Int?
+  id             String  @id @default(uuid())
+  userId         String  @unique
+  studentId      String?
+  major          String?
+  specialization String?
+  gpa            Float?
+  graduationYear Int?
 
-  cvUrl            String?
-  linkedinUrl      String?
-  githubUrl        String?
-  portfolioUrl     String?
+  cvUrl        String?
+  linkedinUrl  String?
+  githubUrl    String?
+  portfolioUrl String?
 
-  skills           String[]
-  bio              String?
+  skills String[]
+  bio    String?
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user             User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }
 
 //////////////////////
@@ -173,60 +249,311 @@ model AcademicProfile {
 //////////////////////
 
 model GraduationProject {
-  id             String        @id @default(uuid())
-  title          String
-  summary        String
-  description    String?
-  status         ProjectStatus @default(DRAFT)
-  ideaType       IdeaType      @default(FREE)
-  price          Float         @default(0)
+  id          String        @id @default(uuid())
+  title       String
+  summary     String
+  description String?
+  status      ProjectStatus @default(DRAFT)
+  ideaType    IdeaType      @default(FREE)
+  price       Float         @default(0)
 
-  createdById    String
-  createdBy      User          @relation("CreatedProjects", fields: [createdById], references: [id])
+  createdById String
+  createdBy   User   @relation("CreatedProjects", fields: [createdById], references: [id])
 
-  universityId   String?
-  collegeId      String?
-  departmentId   String?
+  universityId String?
+  collegeId    String?
+  departmentId String?
 
-  university     University?   @relation(fields: [universityId], references: [id])  // ← ADDED
+  university University? @relation(fields: [universityId], references: [id])
 
   technologies   String[]
   requiredSkills String[]
 
-  isPublished    Boolean       @default(false)
-  isApproved     Boolean       @default(false)
+  isPublished Boolean @default(false)
+  isApproved  Boolean @default(false)
 
-  viewsCount     Int           @default(0)
-  savesCount     Int           @default(0)
-  purchaseCount  Int           @default(0)
+  viewsCount    Int @default(0)
+  savesCount    Int @default(0)
+  purchaseCount Int @default(0)
 
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  details        ProjectDetail?
-  files          ProjectFile[]
+  details ProjectDetail?
+  files   ProjectFile[]
+
+  // Team & Collaboration
+  team       Team?
+  milestones Milestone[]
+
+  // Transactions & Complaints
+  purchases  Payment[]
+  complaints Complaint[]
+
+  @@index([createdById])
+  @@index([status])
+  @@index([universityId])
+  @@index([isPublished])
 }
 
 model ProjectDetail {
-  id                    String   @id @default(uuid())
-  projectId             String   @unique
-  detailedDescription   String?
-  implementationGuide   String?
-  deliverables          String[]
-  documentationUrl      String?
+  id                  String   @id @default(uuid())
+  projectId           String   @unique
+  detailedDescription String?
+  implementationGuide String?
+  deliverables        String[]
+  documentationUrl    String?
 
-  project               GraduationProject @relation(fields: [projectId], references: [id])
+  project GraduationProject @relation(fields: [projectId], references: [id])
 }
 
 model ProjectFile {
-  id          String   @id @default(uuid())
-  projectId   String
-  fileName    String
-  fileUrl     String
-  fileType    String?
-  fileSize    BigInt?
-  uploadedBy  String
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  projectId  String
+  fileName   String
+  fileUrl    String
+  fileType   String?
+  fileSize   BigInt?
+  uploadedBy String
+  createdAt  DateTime @default(now())
 
-  project     GraduationProject @relation(fields: [projectId], references: [id])
+  project GraduationProject @relation(fields: [projectId], references: [id])
+}
+
+//////////////////////
+// AUTH REVOCATION
+//////////////////////
+
+
+//////////////////////
+// TEAMS & COLLABORATION
+//////////////////////
+
+model Team {
+  id             String        @id @default(uuid())
+  name           String
+  description    String?
+  projectId      String?       @unique
+  mentorId       String?
+  mentorApproved Boolean       @default(false)
+  status         ProjectStatus @default(DRAFT)
+  maxMembers     Int           @default(5)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project      GraduationProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  mentor       User?              @relation(fields: [mentorId], references: [id], onDelete: SetNull)
+  members      TeamMember[]
+  tasks        Task[]
+  milestones   Milestone[]
+  chats        Chat[]
+  joinRequests JoinRequest[]
+  meetings     Meeting[]
+
+  @@index([projectId])
+  @@index([mentorId])
+}
+
+model TeamMember {
+  id               String         @id @default(uuid())
+  teamId           String
+  userId           String
+  role             TeamMemberRole @default(MEMBER)
+  joinedAt         DateTime       @default(now())
+  status           RequestStatus  @default(PENDING)
+  withdrawalCount  Int            @default(0)
+  lastWithdrawalAt DateTime?
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@index([teamId])
+}
+
+model JoinRequest {
+  id          String        @id @default(uuid())
+  teamId      String
+  userId      String
+  coverLetter String?
+  status      RequestStatus @default(PENDING)
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([userId])
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  teamId      String
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  assignedTo  String?
+  dueDate     DateTime?
+  priority    Int        @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team     Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignee User? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([assignedTo])
+  @@index([status])
+}
+
+model Milestone {
+  id          String          @id @default(uuid())
+  teamId      String
+  projectId   String
+  title       String
+  description String?
+  status      MilestoneStatus @default(PENDING)
+  dueDate     DateTime?
+  submittedAt DateTime?
+  reviewedBy  String?
+  reviewNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team     Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project  GraduationProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reviewer User?             @relation(fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([projectId])
+}
+
+//////////////////////
+// COMMUNICATIONS
+//////////////////////
+
+model Chat {
+  id        String   @id @default(uuid())
+  teamId    String
+  type      ChatType @default(TEAM)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  messages Message[]
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  chatId    String
+  senderId  String
+  content   String
+  isEdited  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chat   Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender User @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model Meeting {
+  id          String        @id @default(uuid())
+  teamId      String
+  createdById String
+  title       String
+  description String?
+  meetingUrl  String?
+  location    String?
+  status      MeetingStatus @default(SCHEDULED)
+  startAt     DateTime
+  endAt       DateTime
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  team      Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User @relation("CreatedMeetings", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([startAt])
+  @@index([status])
+}
+
+//////////////////////
+// NOTIFICATIONS & TRANSACTIONS
+//////////////////////
+
+model Notification {
+  id              String           @id @default(uuid())
+  userId          String
+  type            NotificationType
+  title           String
+  content         String
+  relatedEntityId String?
+  isRead          Boolean          @default(false)
+  readAt          DateTime?
+  createdAt       DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  buyerId       String
+  projectId     String
+  amount        Float
+  status        PaymentStatus @default(PENDING)
+  transactionId String?
+  paymentMethod String?
+  processedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  buyer   User              @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  project GraduationProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([buyerId])
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Complaint {
+  id              String          @id @default(uuid())
+  reporterId      String
+  targetUserId    String?
+  targetProjectId String?
+  title           String
+  description     String
+  status          ComplaintStatus @default(SUBMITTED)
+  resolution      String?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reporter       User               @relation("ReportedComplaints", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetUser     User?              @relation("ReceivedComplaints", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetProject  GraduationProject? @relation(fields: [targetProjectId], references: [id], onDelete: SetNull)
+  resolvedByUser User?              @relation("ResolvedComplaints", fields: [resolvedBy], references: [id], onDelete: SetNull)
+
+  @@index([reporterId])
+  @@index([status])
+  @@index([createdAt])
 }

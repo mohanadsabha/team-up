@@ -2,6 +2,7 @@ import { verify, sign } from "jsonwebtoken";
 import AppError from "../utils/appError";
 import type { StringValue } from "ms";
 import type { JwtPayload } from "jsonwebtoken";
+import { randomUUID } from "crypto";
 
 /*
  ** Make modifications to the JWT payload as needed.

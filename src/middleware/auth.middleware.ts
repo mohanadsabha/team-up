@@ -49,6 +49,9 @@ export const protect = async (
       ),
     );
   }
+  if (!user.isActive) {
+    return next(new AppError("Your account is not active.", 403));
+  }
   if (decoded.iat && user.lastLogin) {
     const revokedBefore = Math.floor(user.lastLogin.getTime() / 1000);
     if (decoded.iat < revokedBefore) {
