@@ -226,7 +226,6 @@ model AcademicProfile {
   userId         String  @unique
   studentId      String?
   major          String?
-  specialization String?
   gpa            Float?
   graduationYear Int?
 

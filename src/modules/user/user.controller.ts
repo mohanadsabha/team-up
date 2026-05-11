@@ -3,6 +3,7 @@ import { zodValidation } from "../../utils/zod.util";
 import {
   GetUsersQuery,
   GetUserActivityQuery,
+  AcademicProfileSummary,
   getUsersQuerySchema,
   getUserActivityQuerySchema,
   IdParam,
@@ -43,6 +44,10 @@ type UserRecord = {
   profilePictureUrl: string | null;
   bio: string | null;
   phone: string | null;
+  academicProfile?: {
+    major: string | null;
+    skills: string[];
+  } | null;
   lastLogin: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -67,6 +72,9 @@ class UserController {
   ) => {
     const user = await prisma.user.findUnique({
       where: { id: req.user.userId },
+      include: {
+        academicProfile: true,
+      },
     });
 
     if (!user) {
@@ -86,6 +94,7 @@ class UserController {
     _next: NextFunction,
   ) => {
     const payload = zodValidation(updateMeSchema, req.body);
+    const { major, skills, ...userPayload } = payload;
 
     if (payload.username) {
       const existingByUsername = await prisma.user.findUnique({
@@ -97,10 +106,40 @@ class UserController {
       }
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: req.user.userId },
-      data: payload,
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      if (Object.keys(userPayload).length > 0) {
+        await tx.user.update({
+          where: { id: req.user.userId },
+          data: userPayload,
+        });
+      }
+
+      if (major !== undefined || skills !== undefined) {
+        await tx.academicProfile.upsert({
+          where: { userId: req.user.userId },
+          create: {
+            userId: req.user.userId,
+            major: major ?? null,
+            skills: skills ?? [],
+          },
+          update: {
+            ...(major !== undefined ? { major } : {}),
+            ...(skills !== undefined ? { skills } : {}),
+          },
+        });
+      }
+
+      return tx.user.findUnique({
+        where: { id: req.user.userId },
+        include: {
+          academicProfile: true,
+        },
+      });
     });
+
+    if (!updatedUser) {
+      throw new AppError("User not found.", 404);
+    }
 
     res.status(200).json({
       success: true,
@@ -183,9 +222,7 @@ class UserController {
         key: "academicProfile",
         completed:
           !!user.academicProfile &&
-          (!!user.academicProfile.major ||
-            !!user.academicProfile.specialization ||
-            user.academicProfile.skills.length > 0),
+          (!!user.academicProfile.major || user.academicProfile.skills.length > 0),
       },
     ];
 
@@ -290,6 +327,9 @@ class UserController {
 
     const user = await prisma.user.findUnique({
       where: { id: params.id },
+      include: {
+        academicProfile: true,
+      },
     });
 
     if (!user) {
@@ -455,6 +495,9 @@ class UserController {
       profilePictureUrl: user.profilePictureUrl,
       bio: user.bio,
       phone: user.phone,
+      academicProfile: user.academicProfile
+        ? this.summarizeAcademicProfile(user.academicProfile)
+        : null,
       lastLogin: user.lastLogin,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -473,7 +516,19 @@ class UserController {
       departmentId: user.departmentId,
       profilePictureUrl: user.profilePictureUrl,
       bio: user.bio,
+      academicProfile: user.academicProfile
+        ? this.summarizeAcademicProfile(user.academicProfile)
+        : null,
       createdAt: user.createdAt,
+    };
+  }
+
+  private summarizeAcademicProfile(
+    academicProfile: NonNullable<UserRecord["academicProfile"]>,
+  ): AcademicProfileSummary {
+    return {
+      major: academicProfile.major,
+      skills: academicProfile.skills,
     };
   }
 

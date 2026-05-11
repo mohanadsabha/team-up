@@ -15,6 +15,8 @@ export const updateMeSchema = z
     lastName: z.string().trim().min(2).max(50).optional(),
     bio: z.string().trim().max(500).nullable().optional(),
     phone: z.string().trim().max(30).nullable().optional(),
+    major: z.string().trim().max(100).nullable().optional(),
+    skills: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
     profilePictureUrl: z.string().trim().url().nullable().optional(),
     universityId: z.string().trim().uuid().nullable().optional(),
     collegeId: z.string().trim().uuid().nullable().optional(),
@@ -25,6 +27,11 @@ export const updateMeSchema = z
   }) satisfies ZodType;
 
 export type UpdateMe = z.infer<typeof updateMeSchema>;
+
+export type AcademicProfileSummary = {
+  major: string | null;
+  skills: string[];
+};
 
 export const updateUserStatusSchema = z.object({
   isActive: z.boolean().optional(),
@@ -77,6 +84,7 @@ export type PrivateUserItem = {
   profilePictureUrl: string | null;
   bio: string | null;
   phone: string | null;
+  academicProfile?: AcademicProfileSummary | null;
   lastLogin: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -93,6 +101,7 @@ export type PublicUserItem = {
   departmentId: string | null;
   profilePictureUrl: string | null;
   bio: string | null;
+  academicProfile?: AcademicProfileSummary | null;
   createdAt: Date;
 };
 
