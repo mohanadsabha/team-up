@@ -17,6 +17,7 @@ export const createComplaintSchema = z.object({
 
 export const updateComplaintStatusSchema = z.object({
   status: z.enum(["SUBMITTED", "INVESTIGATING", "RESOLVED"]),
+  resolutionNotes: z.string().trim().min(1).max(1000).optional(),
 }) satisfies ZodType;
 
 export const getComplaintsQuerySchema = z.object({
