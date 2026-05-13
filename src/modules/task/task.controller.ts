@@ -170,10 +170,10 @@ class TaskController {
     if (payload.assignedTo) {
       const user = await prisma.user.findUnique({
         where: { id: payload.assignedTo },
-        select: { id: true },
+        select: { id: true, deletedAt: true },
       });
 
-      if (!user) {
+      if (!user || user.deletedAt) {
         throw new AppError("Assigned user not found.", 404);
       }
 
@@ -267,10 +267,10 @@ class TaskController {
     if (payload.assignedTo !== undefined && payload.assignedTo) {
       const user = await prisma.user.findUnique({
         where: { id: payload.assignedTo },
-        select: { id: true },
+        select: { id: true, deletedAt: true },
       });
 
-      if (!user) {
+      if (!user || user.deletedAt) {
         throw new AppError("Assigned user not found.", 404);
       }
 

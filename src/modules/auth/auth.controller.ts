@@ -125,30 +125,80 @@ class AuthController {
   ) => {
     const payload = zodValidation(signUpSchema, req.body);
 
+    // Check for active users (not deleted)
     const [emailExists, usernameExists] = await Promise.all([
       prisma.user.findUnique({
         where: { email: payload.email },
-        select: { id: true },
+        select: { id: true, deletedAt: true },
       }),
       prisma.user.findUnique({
         where: { username: payload.username },
-        select: { id: true },
+        select: { id: true, deletedAt: true },
       }),
     ]);
 
+    // Check for deleted accounts
+    let deletedEmailUser = null;
+    if (emailExists?.deletedAt) {
+      deletedEmailUser = await prisma.user.findUnique({
+        where: { email: payload.email },
+        select: { id: true, deletedAt: true, createdAt: true },
+      });
+    }
+
     const signupConflictErrors: Array<{ path: string; message: string }> = [];
-    if (emailExists) {
+
+    // Handle active email conflict
+    if (emailExists && !emailExists.deletedAt) {
       signupConflictErrors.push({
         path: "email",
         message: "Email is already in use.",
       });
     }
-    if (usernameExists) {
+
+    // Handle deleted email within 90 days
+    if (deletedEmailUser && deletedEmailUser.deletedAt) {
+      const daysSinceDelete = Math.floor(
+        (Date.now() - deletedEmailUser.deletedAt.getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
+      if (daysSinceDelete < 90) {
+        throw this.buildSignupFieldError(
+          "Account recovery required.",
+          [
+            {
+              path: "email",
+              message:
+                "This email was recently deleted. Please contact system admin to recover your account or wait 90 days after deletion.",
+            },
+          ],
+          403,
+          "ACCOUNT_DELETED_RECENTLY",
+        );
+      } else {
+        // Hard delete the old account after 90 days
+        await prisma.user.delete({
+          where: { id: deletedEmailUser.id },
+        });
+      }
+    }
+
+    // Check active username
+    if (usernameExists && !usernameExists.deletedAt) {
       signupConflictErrors.push({
         path: "username",
         message: "Username is already in use.",
       });
     }
+
+    // Username reserved even if deleted (forever)
+    if (usernameExists && usernameExists.deletedAt) {
+      signupConflictErrors.push({
+        path: "username",
+        message: "Username is reserved and cannot be reused.",
+      });
+    }
+
     if (signupConflictErrors.length) {
       throw this.buildSignupFieldError(
         "Signup validation failed.",
@@ -898,6 +948,38 @@ class AuthController {
       fieldErrors,
     });
   }
+
+  public deleteMyAccount = async (
+    req: Request,
+    res: Response<MessageResponse>,
+    _next: NextFunction,
+  ) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+    });
+
+    if (!user) {
+      throw new AppError("User not found.", 404);
+    }
+
+    if (user.deletedAt) {
+      throw new AppError("Account is already deleted.", 410);
+    }
+
+    // Soft delete the account
+    await prisma.user.update({
+      where: { id: req.user.userId },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message:
+        "Account deleted successfully. Your account data will be permanently removed after 90 days.",
+    });
+  };
 
   private isPasswordResetTokenPayload(
     payload: unknown,

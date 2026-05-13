@@ -22,6 +22,7 @@ router.post("/reset-password", authController.resetPassword);
 router.use(protect);
 router.post("/change-password", authController.changePassword);
 router.post("/revoke-tokens", authController.revokeTokens);
+router.delete("/delete-account", authController.deleteMyAccount);
 
 // Admin endpoints - SYSTEM_ADMIN only
 router.use(restrictTo("SYSTEM_ADMIN"));

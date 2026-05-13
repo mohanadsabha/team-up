@@ -178,10 +178,14 @@ class TeamController {
     if (payload.mentorId) {
       const mentor = await prisma.user.findUnique({
         where: { id: payload.mentorId },
-        select: { id: true, role: true },
+        select: { id: true, role: true, deletedAt: true },
       });
 
-      if (!mentor || !["MENTOR", "SYSTEM_ADMIN"].includes(mentor.role)) {
+      if (
+        !mentor ||
+        mentor.deletedAt ||
+        !["MENTOR", "SYSTEM_ADMIN"].includes(mentor.role)
+      ) {
         throw new AppError("Mentor not found or invalid role.", 404);
       }
     }
@@ -261,10 +265,14 @@ class TeamController {
     if (payload.mentorId) {
       const mentor = await prisma.user.findUnique({
         where: { id: payload.mentorId },
-        select: { id: true, role: true },
+        select: { id: true, role: true, deletedAt: true },
       });
 
-      if (!mentor || !["MENTOR", "SYSTEM_ADMIN"].includes(mentor.role)) {
+      if (
+        !mentor ||
+        mentor.deletedAt ||
+        !["MENTOR", "SYSTEM_ADMIN"].includes(mentor.role)
+      ) {
         throw new AppError("Mentor not found or invalid role.", 404);
       }
     }
@@ -417,10 +425,10 @@ class TeamController {
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new AppError("User not found.", 404);
     }
 

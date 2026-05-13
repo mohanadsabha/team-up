@@ -21,7 +21,7 @@ import {
   PrivateUserItem,
 } from "./user.interface";
 import AppError from "../../utils/appError";
-import { prisma } from "../../config/prisma";
+import { prisma, Prisma } from "../../config/prisma";
 import { UserRole } from "../../generated/prisma/enums";
 import {
   deleteImageFromCloudinary,
@@ -69,8 +69,8 @@ class UserController {
       where: { id: req.user.userId },
     });
 
-    if (!user) {
-      throw new AppError("User not found.", 404);
+    if (!user || user.deletedAt) {
+      throw new AppError("User not found or account has been deleted.", 404);
     }
 
     res.status(200).json({
@@ -87,12 +87,25 @@ class UserController {
   ) => {
     const payload = zodValidation(updateMeSchema, req.body);
 
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+    });
+
+    if (!currentUser || currentUser.deletedAt) {
+      throw new AppError("User not found or account has been deleted.", 404);
+    }
+
     if (payload.username) {
       const existingByUsername = await prisma.user.findUnique({
         where: { username: payload.username },
+        select: { id: true, deletedAt: true },
       });
 
-      if (existingByUsername && existingByUsername.id !== req.user.userId) {
+      if (
+        existingByUsername &&
+        existingByUsername.id !== req.user.userId &&
+        !existingByUsername.deletedAt
+      ) {
         throw new AppError("Username is already in use.", 409);
       }
     }
@@ -231,7 +244,8 @@ class UserController {
       throw new AppError("Invalid role filter value.", 400);
     }
 
-    const whereClause = {
+    const whereClause: Prisma.UserWhereInput = {
+      deletedAt: null,
       ...(roleQuery ? { role: roleQuery } : {}),
       ...(query.universityId ? { universityId: query.universityId } : {}),
       ...(query.collegeId ? { collegeId: query.collegeId } : {}),
@@ -293,6 +307,11 @@ class UserController {
     });
 
     if (!user) {
+      throw new AppError("User not found.", 404);
+    }
+
+    // Allow viewing own deleted profile, but not others'
+    if (user.deletedAt && req.user.userId !== user.id) {
       throw new AppError("User not found.", 404);
     }
 

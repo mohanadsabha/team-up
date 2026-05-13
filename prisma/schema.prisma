@@ -185,6 +185,7 @@ model User {
   statusChangedById  String?
   statusChangeReason String?
   deactivatedAt      DateTime?
+  deletedAt          DateTime?
 
   university University? @relation(fields: [universityId], references: [id])
   college    College?    @relation(fields: [collegeId], references: [id])

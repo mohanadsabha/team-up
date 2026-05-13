@@ -48,10 +48,14 @@ class MentorInvitationController {
     // Verify mentor exists and has MENTOR role
     const mentor = await prisma.user.findUnique({
       where: { id: payload.mentorId },
-      select: { id: true, role: true },
+      select: { id: true, role: true, deletedAt: true },
     });
 
-    if (!mentor || !["MENTOR", "SYSTEM_ADMIN"].includes(mentor.role)) {
+    if (
+      !mentor ||
+      mentor.deletedAt ||
+      !["MENTOR", "SYSTEM_ADMIN"].includes(mentor.role)
+    ) {
       throw new AppError("Mentor not found or invalid role.", 404);
     }
 
