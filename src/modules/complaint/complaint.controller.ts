@@ -170,11 +170,7 @@ class ComplaintController {
   };
 
   public updateComplaintStatus = async (
-    req: Request<
-      IdParam,
-      StringObject,
-      UpdateComplaintStatus & { resolutionNotes?: string }
-    >,
+    req: Request<IdParam, StringObject, UpdateComplaintStatus>,
     res: Response<MessageResponse & { complaint: ComplaintResponse }>,
     _next: NextFunction,
   ) => {
@@ -196,7 +192,7 @@ class ComplaintController {
         ...(payload.status === "RESOLVED"
           ? {
               resolvedBy: req.user.userId,
-              resolution: (req.body as any).resolution,
+              resolution: payload.resolutionNotes ?? null,
               resolvedAt: new Date(),
             }
           : {}),
