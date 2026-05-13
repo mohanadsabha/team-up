@@ -293,6 +293,13 @@ class AuthController {
       throw new AppError("Invalid email or password.", 401);
     }
 
+    if (user.deletedAt) {
+      throw new AppError(
+        "This account is scheduled for deletion. Please contact system admin to recover it, or wait 90 days to sign up again with this email.",
+        410,
+      );
+    }
+
     if (!user.isVerified) {
       throw new AppError("Please verify your email before logging in.", 403);
     }
@@ -613,6 +620,13 @@ class AuthController {
     const user = await prisma.user.findUnique({
       where: { email: payload.email },
     });
+
+    if (user && user.deletedAt) {
+      throw new AppError(
+        "This account is scheduled for deletion. Please contact system admin to recover it, or wait 90 days to sign up again with this email.",
+        410,
+      );
+    }
 
     if (user && user.passwordHash) {
       const checksum = user.passwordHash.slice(-12);
@@ -979,6 +993,90 @@ class AuthController {
       message:
         "Account deleted successfully. Your account data will be permanently removed after 90 days.",
     });
+  };
+
+  public recoverDeletedAccount = async (
+    req: Request<IdParam>,
+    res: Response<MessageResponse>,
+    _next: NextFunction,
+  ) => {
+    const { id } = zodValidation(idParamSchema, req.params);
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new AppError("User not found.", 404);
+    }
+
+    if (!user.deletedAt) {
+      throw new AppError("This account is not deleted.", 400);
+    }
+
+    const daysSinceDeletion =
+      (Date.now() - user.deletedAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceDeletion > 90) {
+      throw new AppError(
+        "Account has passed the 90-day recovery window. Cannot recover.",
+        410,
+      );
+    }
+
+    // Restore the account
+    await prisma.user.update({
+      where: { id },
+      data: {
+        deletedAt: null,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Account recovered successfully.",
+    });
+  };
+
+  public hardDeleteOldAccounts = async () => {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+    // Find all users deleted more than 90 days ago
+    const usersToDelete = await prisma.user.findMany({
+      where: {
+        deletedAt: {
+          lt: ninetyDaysAgo,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (usersToDelete.length === 0) {
+      console.log("No accounts to hard delete.");
+      return;
+    }
+
+    // Hard delete related data in cascade
+    for (const user of usersToDelete) {
+      // Remove user from team memberships
+      await prisma.teamMember.deleteMany({
+        where: { userId: user.id },
+      });
+
+      // Unassign tasks from this user
+      await prisma.task.updateMany({
+        where: { assignedTo: user.id },
+        data: { assignedTo: null },
+      });
+
+      // Hard delete the user
+      await prisma.user.delete({
+        where: { id: user.id },
+      });
+    }
+
+    console.log(
+      `Hard deleted ${usersToDelete.length} accounts older than 90 days.`,
+    );
   };
 
   private isPasswordResetTokenPayload(
