@@ -181,10 +181,10 @@ class NotificationController {
   public async createNotification(payload: CreateNotification) {
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new AppError("User not found.", 404);
     }
 

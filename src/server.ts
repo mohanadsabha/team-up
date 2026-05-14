@@ -7,9 +7,11 @@ process.on("uncaughtException", (err) => {
 
 import app from "./app";
 import { bootstrapMeetingReminders } from "./modules/meeting/meeting-reminder.job";
+import { initializeScheduler } from "./utils/scheduler.util";
 
 const PORT = process.env.PORT || 3000;
 const meetingRuntime = bootstrapMeetingReminders();
+const scheduledJobs = initializeScheduler();
 
 const server = meetingRuntime.runApi
   ? app.listen(PORT, () => {
@@ -19,6 +21,7 @@ const server = meetingRuntime.runApi
 
 function shutdown(exitCode: number) {
   meetingRuntime.stop();
+  scheduledJobs.hardDeleteJob.stop();
 
   if (!server) {
     process.exit(exitCode);

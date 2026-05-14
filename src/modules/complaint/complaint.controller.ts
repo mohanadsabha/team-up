@@ -132,10 +132,10 @@ class ComplaintController {
     if (payload.targetUserId) {
       const user = await prisma.user.findUnique({
         where: { id: payload.targetUserId },
-        select: { id: true },
+        select: { id: true, deletedAt: true },
       });
 
-      if (!user) {
+      if (!user || user.deletedAt) {
         throw new AppError("Target user not found.", 404);
       }
     }
