@@ -215,7 +215,8 @@ class AuthController {
 
     res.status(201).json({
       success: true,
-      message: "Account created successfully.",
+      message:
+        "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in.",
       token,
       //FIXME
       verificationToken,
@@ -285,11 +286,12 @@ class AuthController {
       throw new AppError("Invalid verification token.", 401);
     }
 
-    if (!user.isVerified || !user.emailVerifiedAt) {
+    if (!user.isVerified || !user.isActive || !user.emailVerifiedAt) {
       await prisma.user.update({
         where: { id: user.id },
         data: {
           isVerified: true,
+          isActive: true,
           emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
         },
       });
@@ -297,7 +299,7 @@ class AuthController {
 
     res.status(200).json({
       success: true,
-      message: "Email verified successfully.",
+      message: "Email verified successfully. Your account is now active and you can log in.",
     });
   };
 
