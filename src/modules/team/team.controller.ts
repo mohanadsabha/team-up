@@ -369,8 +369,6 @@ class TeamController {
       throw new AppError("Team not found.", 404);
     }
 
-    await this.assertTeamAdmin(params.id, req.user.userId, req.user.role);
-
     const members = await prisma.teamMember.findMany({
       where: {
         teamId: params.id,

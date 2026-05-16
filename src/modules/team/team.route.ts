@@ -9,12 +9,13 @@ const router = Router();
  */
 router.get("/", teamController.getTeams);
 router.get("/:id", teamController.getTeamById);
-router.get("/:id/members", teamController.getTeamMembers);
 
 /**
  * PROTECTED ENDPOINTS - Authenticated users can manage teams
  */
 router.use(protect);
+
+router.get("/:id/members", teamController.getTeamMembers);
 
 // Team management
 router.post("/", teamController.createTeam);
