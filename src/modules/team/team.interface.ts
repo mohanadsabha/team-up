@@ -12,7 +12,6 @@ export const createTeamSchema = z.object({
   name: z.string().trim().min(2).max(100),
   description: z.string().trim().max(500).optional(),
   projectId: z.string().trim().uuid().optional(),
-  mentorId: z.string().trim().uuid().optional(),
   maxMembers: z.number().int().min(2).max(50).optional(),
 }) satisfies ZodType;
 
@@ -21,7 +20,6 @@ export const updateTeamSchema = z
     name: z.string().trim().min(2).max(100).optional(),
     description: z.string().trim().max(500).nullable().optional(),
     projectId: z.string().trim().uuid().nullable().optional(),
-    mentorId: z.string().trim().uuid().nullable().optional(),
     maxMembers: z.number().int().min(2).max(50).optional(),
     status: z.enum(["DRAFT", "SUBMITTED", "PUBLISHED", "COMPLETED"]).optional(),
   })
@@ -31,11 +29,11 @@ export const updateTeamSchema = z
 
 export const addTeamMemberSchema = z.object({
   userId: z.string().trim().uuid(),
-  role: z.enum(["TEAM_ADMIN", "MEMBER", "MENTOR"]).default("MEMBER"),
+  role: z.enum(["TEAM_ADMIN", "MEMBER"]).default("MEMBER"),
 }) satisfies ZodType;
 
 export const updateTeamMemberSchema = z.object({
-  role: z.enum(["TEAM_ADMIN", "MEMBER", "MENTOR"]),
+  role: z.enum(["TEAM_ADMIN", "MEMBER"]),
 }) satisfies ZodType;
 
 export const getTeamsQuerySchema = z.object({

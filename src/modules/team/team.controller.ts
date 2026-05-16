@@ -37,6 +37,15 @@ class TeamController {
       return;
     }
 
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { mentorId: true, mentorApproved: true },
+    });
+
+    if (team?.mentorApproved && team.mentorId === userId) {
+      return;
+    }
+
     const adminMembership = await prisma.teamMember.findUnique({
       where: {
         teamId_userId: { teamId, userId },
@@ -175,21 +184,6 @@ class TeamController {
   ) => {
     const payload = zodValidation(createTeamSchema, req.body);
 
-    if (payload.mentorId) {
-      const mentor = await prisma.user.findUnique({
-        where: { id: payload.mentorId },
-        select: { id: true, role: true, deletedAt: true },
-      });
-
-      if (
-        !mentor ||
-        mentor.deletedAt ||
-        !["MENTOR", "SYSTEM_ADMIN"].includes(mentor.role)
-      ) {
-        throw new AppError("Mentor not found or invalid role.", 404);
-      }
-    }
-
     if (payload.projectId) {
       const project = await prisma.graduationProject.findUnique({
         where: { id: payload.projectId },
@@ -207,7 +201,6 @@ class TeamController {
           name: payload.name,
           description: payload.description,
           projectId: payload.projectId,
-          mentorId: payload.mentorId,
           maxMembers: payload.maxMembers ?? 5,
           status: "DRAFT",
         },
@@ -262,21 +255,6 @@ class TeamController {
 
     await this.assertTeamAdmin(params.id, req.user.userId, req.user.role);
 
-    if (payload.mentorId) {
-      const mentor = await prisma.user.findUnique({
-        where: { id: payload.mentorId },
-        select: { id: true, role: true, deletedAt: true },
-      });
-
-      if (
-        !mentor ||
-        mentor.deletedAt ||
-        !["MENTOR", "SYSTEM_ADMIN"].includes(mentor.role)
-      ) {
-        throw new AppError("Mentor not found or invalid role.", 404);
-      }
-    }
-
     if (payload.projectId) {
       const project = await prisma.graduationProject.findUnique({
         where: { id: payload.projectId },
@@ -286,6 +264,16 @@ class TeamController {
       if (!project) {
         throw new AppError("Project not found.", 404);
       }
+    }
+
+    if (
+      payload.maxMembers !== undefined &&
+      payload.maxMembers < team.members.length
+    ) {
+      throw new AppError(
+        "Maximum members must be greater than the current member count.",
+        400,
+      );
     }
 
     const updatedTeam = await prisma.team.update({
@@ -298,14 +286,10 @@ class TeamController {
         ...(payload.projectId !== undefined
           ? { projectId: payload.projectId }
           : {}),
-        ...(payload.mentorId !== undefined
-          ? { mentorId: payload.mentorId }
-          : {}),
         ...(payload.maxMembers ? { maxMembers: payload.maxMembers } : {}),
         ...(payload.status ? { status: payload.status } : {}),
       },
     });
-
     res.status(200).json({
       success: true,
       message: "Team updated successfully.",
@@ -423,10 +407,10 @@ class TeamController {
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, deletedAt: true },
+      select: { id: true, role: true, deletedAt: true },
     });
 
-    if (!user || user.deletedAt) {
+    if (!user || user.deletedAt || user.role === "MENTOR") {
       throw new AppError("User not found.", 404);
     }
 
@@ -505,10 +489,12 @@ class TeamController {
     await this.assertTeamAdmin(teamId, req.user.userId, req.user.role);
 
     const member = await prisma.teamMember.findUnique({
-      where: { id: memberId },
+      where: {
+        teamId_userId: { teamId, userId: memberId },
+      },
     });
 
-    if (!member || member.teamId !== teamId) {
+    if (!member) {
       throw new AppError("Member not found in this team.", 404);
     }
 
@@ -523,7 +509,9 @@ class TeamController {
     }
 
     const updatedMember = await prisma.teamMember.update({
-      where: { id: memberId },
+      where: {
+        teamId_userId: { teamId, userId: memberId },
+      },
       data: { role: payload.role },
       include: {
         user: {
@@ -567,10 +555,12 @@ class TeamController {
     }
 
     const member = await prisma.teamMember.findUnique({
-      where: { id: memberId },
+      where: {
+        teamId_userId: { teamId, userId: memberId },
+      },
     });
 
-    if (!member || member.teamId !== teamId) {
+    if (!member) {
       throw new AppError("Member not found in this team.", 404);
     }
 
@@ -585,7 +575,9 @@ class TeamController {
     }
 
     await prisma.teamMember.delete({
-      where: { id: memberId },
+      where: {
+        teamId_userId: { teamId, userId: memberId },
+      },
     });
 
     res.status(200).json({
