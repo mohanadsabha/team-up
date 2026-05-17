@@ -3,7 +3,7 @@ import z, { ZodType } from "zod";
 export type StringObject = Record<string, unknown>;
 
 export const idParamSchema = z.object({
-  id: z.string().trim().uuid(),
+  teamId: z.string().trim().uuid(),
 }) satisfies ZodType;
 
 export type IdParam = z.infer<typeof idParamSchema>;

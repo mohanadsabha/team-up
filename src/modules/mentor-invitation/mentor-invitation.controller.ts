@@ -25,7 +25,7 @@ class MentorInvitationController {
 
     // Verify team exists and user is team admin
     const team = await prisma.team.findUnique({
-      where: { id: params.id },
+      where: { id: params.teamId },
       include: {
         members: {
           where: { userId: req.user.userId },
@@ -66,7 +66,7 @@ class MentorInvitationController {
 
     // Send invitation
     await prisma.team.update({
-      where: { id: params.id },
+      where: { id: params.teamId },
       data: {
         mentorId: payload.mentorId,
         mentorApproved: false,
@@ -79,7 +79,7 @@ class MentorInvitationController {
       type: "MENTOR_INVITATION_SENT",
       title: `Mentorship Invitation from ${team.name}`,
       content: `You have been invited to mentor the team "${team.name}". Accept or reject this invitation.`,
-      relatedEntityId: params.id,
+      relatedEntityId: params.teamId,
     });
 
     res.status(200).json({
@@ -93,6 +93,14 @@ class MentorInvitationController {
     res: Response<MentorInvitationsListResponse>,
     _next: NextFunction,
   ) => {
+    // Only mentors or system admins can get their invitations
+    if (!["MENTOR", "SYSTEM_ADMIN"].includes(req.user.role)) {
+      throw new AppError(
+        "Only mentors or system admins can view their mentor invitations.",
+        403,
+      );
+    }
+
     const teams = await prisma.team.findMany({
       where: {
         mentorId: req.user.userId,
@@ -140,10 +148,18 @@ class MentorInvitationController {
     res: Response<TeamWithMentorResponse>,
     _next: NextFunction,
   ) => {
+    // Only mentors or system admins can accept invitations
+    if (!["MENTOR", "SYSTEM_ADMIN"].includes(req.user.role)) {
+      throw new AppError(
+        "Only mentors or system admins can accept mentor invitations.",
+        403,
+      );
+    }
+
     const params = zodValidation(idParamSchema, req.params);
 
     const team = await prisma.team.findUnique({
-      where: { id: params.id },
+      where: { id: params.teamId },
       include: {
         mentor: {
           select: {
@@ -170,7 +186,7 @@ class MentorInvitationController {
     }
 
     const updated = await prisma.team.update({
-      where: { id: params.id },
+      where: { id: params.teamId },
       data: { mentorApproved: true },
       include: {
         mentor: {
@@ -187,7 +203,7 @@ class MentorInvitationController {
 
     // Send acceptance notification to team creator
     const teamCreator = await prisma.teamMember.findFirst({
-      where: { teamId: params.id, role: "TEAM_ADMIN" },
+      where: { teamId: params.teamId, role: "TEAM_ADMIN" },
       select: { userId: true },
     });
 
@@ -197,7 +213,7 @@ class MentorInvitationController {
         type: "MENTOR_INVITATION_ACCEPTED",
         title: `Mentor Accepted Mentorship`,
         content: `Your mentor invitation for team "${team.name}" has been accepted.`,
-        relatedEntityId: params.id,
+        relatedEntityId: params.teamId,
       });
     }
 
@@ -220,10 +236,18 @@ class MentorInvitationController {
     res: Response<MessageResponse>,
     _next: NextFunction,
   ) => {
+    // Only mentors or system admins can reject invitations
+    if (!["MENTOR", "SYSTEM_ADMIN"].includes(req.user.role)) {
+      throw new AppError(
+        "Only mentors or system admins can reject mentor invitations.",
+        403,
+      );
+    }
+
     const params = zodValidation(idParamSchema, req.params);
 
     const team = await prisma.team.findUnique({
-      where: { id: params.id },
+      where: { id: params.teamId },
     });
 
     if (!team) {
@@ -237,7 +261,7 @@ class MentorInvitationController {
     const mentorName = req.user.username || "A mentor";
 
     await prisma.team.update({
-      where: { id: params.id },
+      where: { id: params.teamId },
       data: {
         mentorId: null,
         mentorApproved: false,
@@ -246,7 +270,7 @@ class MentorInvitationController {
 
     // Send rejection notification to team creator
     const teamCreator = await prisma.teamMember.findFirst({
-      where: { teamId: params.id, role: "TEAM_ADMIN" },
+      where: { teamId: params.teamId, role: "TEAM_ADMIN" },
       select: { userId: true },
     });
 
@@ -256,7 +280,7 @@ class MentorInvitationController {
         type: "MENTOR_INVITATION_REJECTED",
         title: `Mentor Rejected Mentorship`,
         content: `${mentorName} has rejected the mentorship invitation for team "${team.name}".`,
-        relatedEntityId: params.id,
+        relatedEntityId: params.teamId,
       });
     }
 
