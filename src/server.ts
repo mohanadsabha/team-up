@@ -1,4 +1,4 @@
-import "./config/dotenv";
+﻿import "./config/dotenv";
 
 process.on("uncaughtException", (err) => {
   console.log("UNCAUGT EXCEPTION! Shutting down...", err);
@@ -7,13 +7,15 @@ process.on("uncaughtException", (err) => {
 
 import app from "./app";
 import { bootstrapMeetingReminders } from "./modules/meeting/meeting-reminder.job";
+import { bootstrapTaskDueReminders } from "./modules/task/task-due-reminder.job";
 import { initializeScheduler } from "./utils/scheduler.util";
 
 const PORT = process.env.PORT || 3000;
 const meetingRuntime = bootstrapMeetingReminders();
+const taskDueRuntime = bootstrapTaskDueReminders();
 const scheduledJobs = initializeScheduler();
 
-const server = meetingRuntime.runApi
+const server = meetingRuntime.runApi && taskDueRuntime.runApi
   ? app.listen(PORT, () => {
       console.log(`App running on port ${PORT}...`);
     })
@@ -21,6 +23,7 @@ const server = meetingRuntime.runApi
 
 function shutdown(exitCode: number) {
   meetingRuntime.stop();
+  taskDueRuntime.stop();
   scheduledJobs.hardDeleteJob.stop();
 
   if (!server) {

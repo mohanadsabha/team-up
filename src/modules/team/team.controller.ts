@@ -26,6 +26,7 @@ import {
 } from "./team.interface";
 import AppError from "../../utils/appError";
 import { prisma } from "../../config/prisma";
+import { notificationController } from "../notification/notification.controller";
 
 class TeamController {
   private assertTeamAdmin = async (
@@ -407,11 +408,15 @@ class TeamController {
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, role: true, deletedAt: true },
+      select: { id: true, role: true, deletedAt: true, removalStrikes: true },
     });
 
     if (!user || user.deletedAt || user.role === "MENTOR") {
       throw new AppError("User not found.", 404);
+    }
+
+    if (user.removalStrikes >= 3) {
+      throw new AppError("User is blocked from joining teams.", 403);
     }
 
     const existingMember = await prisma.teamMember.findUnique({
@@ -449,6 +454,14 @@ class TeamController {
       },
     });
 
+    await notificationController.createNotification({
+      userId: member.userId,
+      type: "TEAM_MEMBER_ADDED",
+      title: "Added to Team",
+      content: `You were added to team "${team.name}".`,
+      relatedEntityId: params.id,
+    });
+
     res.status(201).json({
       success: true,
       message: "Member added to team successfully.",
@@ -479,7 +492,7 @@ class TeamController {
 
     const team = await prisma.team.findUnique({
       where: { id: teamId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
 
     if (!team) {
@@ -527,6 +540,14 @@ class TeamController {
       },
     });
 
+    await notificationController.createNotification({
+      userId: updatedMember.userId,
+      type: "TEAM_MEMBER_UPDATED",
+      title: "Team Role Updated",
+      content: `Your role in team "${team.name}" was updated to ${updatedMember.role}.`,
+      relatedEntityId: teamId,
+    });
+
     res.status(200).json({
       success: true,
       message: "Member role updated successfully.",
@@ -547,11 +568,16 @@ class TeamController {
 
     const team = await prisma.team.findUnique({
       where: { id: teamId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
 
     if (!team) {
       throw new AppError("Team not found.", 404);
+    }
+
+    const isSelf = memberId === req.user.userId;
+    if (!isSelf) {
+      await this.assertTeamAdmin(teamId, req.user.userId, req.user.role);
     }
 
     const member = await prisma.teamMember.findUnique({
@@ -578,6 +604,20 @@ class TeamController {
       where: {
         teamId_userId: { teamId, userId: memberId },
       },
+    });
+
+    // Increment user's global removal strikes. After 3 strikes user is blocked from joining teams.
+    await prisma.user.update({
+      where: { id: memberId },
+      data: { removalStrikes: { increment: 1 } },
+    });
+
+    await notificationController.createNotification({
+      userId: member.userId,
+      type: "TEAM_MEMBER_REMOVED",
+      title: "Removed from Team",
+      content: `You were removed from team "${team.name}".`,
+      relatedEntityId: teamId,
     });
 
     res.status(200).json({

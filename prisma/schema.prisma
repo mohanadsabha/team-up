@@ -71,6 +71,12 @@ enum NotificationType {
   JOIN_REQUEST_REJECTED
   TASK_ASSIGNED
   TASK_COMPLETED
+  TASK_DUE_SOON
+  TASK_UPDATED
+  TASK_DELETED
+  TEAM_MEMBER_ADDED
+  TEAM_MEMBER_UPDATED
+  TEAM_MEMBER_REMOVED
   MILESTONE_STATUS_CHANGED
   MEETING_REMINDER
   MESSAGE_RECEIVED
@@ -214,6 +220,10 @@ model User {
 
   // Milestone reviews
   reviewedMilestones Milestone[]
+  
+  // Count of times the user was removed/withdrew from teams. When >= 3 the user
+  // is blocked from joining or being added to teams.
+  removalStrikes Int @default(0)
 
   @@index([universityId])
   @@index([collegeId])

@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+﻿import { Request, Response, NextFunction } from "express";
 import { zodValidation } from "../../utils/zod.util";
 import {
   CreateTask,
@@ -18,6 +18,7 @@ import {
 } from "./task.interface";
 import AppError from "../../utils/appError";
 import { prisma } from "../../config/prisma";
+import { notificationController } from "../notification/notification.controller";
 
 class TaskController {
   private assertTeamMember = async (
@@ -200,6 +201,16 @@ class TaskController {
       },
     });
 
+    if (task.assignedTo) {
+      await notificationController.createNotification({
+        userId: task.assignedTo,
+        type: "TASK_ASSIGNED",
+        title: "New Task Assigned",
+        content: `You were assigned task "${task.title}".`,
+        relatedEntityId: task.id,
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: "Task created successfully.",
@@ -285,6 +296,9 @@ class TaskController {
       }
     }
 
+    const isReassigned =
+      payload.assignedTo !== undefined &&
+      payload.assignedTo !== task.assignedTo;
     const updatedTask = await prisma.task.update({
       where: { id: params.id },
       data: {
@@ -311,6 +325,28 @@ class TaskController {
         },
       },
     });
+    if (updatedTask.assignedTo && isReassigned) {
+      await notificationController.createNotification({
+        userId: updatedTask.assignedTo,
+        type: "TASK_ASSIGNED",
+        title: "Task Assignment Updated",
+        content: `You were assigned task "${updatedTask.title}".`,
+        relatedEntityId: updatedTask.id,
+      });
+    }
+    if (
+      updatedTask.assignedTo &&
+      !isReassigned &&
+      req.user.userId !== updatedTask.assignedTo
+    ) {
+      await notificationController.createNotification({
+        userId: updatedTask.assignedTo,
+        type: "TASK_UPDATED",
+        title: "Task Updated",
+        content: `Task "${updatedTask.title}" was updated.`,
+        relatedEntityId: updatedTask.id,
+      });
+    }
 
     res.status(200).json({
       success: true,
