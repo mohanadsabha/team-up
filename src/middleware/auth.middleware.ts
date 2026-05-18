@@ -74,6 +74,46 @@ export const protect = async (
   next();
 };
 
+export const optionalAuth = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  let token: string | undefined;
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    token = req.headers.authorization.split(" ")[1];
+  }
+
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = await verifyJWT(token);
+    const user = await prisma.user.findFirst({
+      where: { id: decoded.userId },
+    });
+
+    if (user && user.isVerified && user.isActive && !user.deletedAt) {
+      if (decoded.iat && user.lastLogin) {
+        const revokedBefore = Math.floor(user.lastLogin.getTime() / 1000);
+        if (decoded.iat >= revokedBefore) {
+          req.user = decoded;
+        }
+      } else {
+        req.user = decoded;
+      }
+    }
+  } catch (error) {
+    // Ignore invalid or expired tokens for optional auth.
+  }
+
+  next();
+};
+
 export const restrictTo = (...roles: string[]) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!roles.includes(req.user.role)) {

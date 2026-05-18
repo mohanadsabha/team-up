@@ -204,6 +204,7 @@ model User {
   // Notifications & Transactions
   notifications     Notification[]
   purchasedProjects Payment[]
+  savedProjects     ProjectSave[]
 
   // Complaints
   reportedComplaints Complaint[]   @relation("ReportedComplaints")
@@ -289,6 +290,7 @@ model GraduationProject {
   // Transactions & Complaints
   purchases  Payment[]
   complaints Complaint[]
+  savedBy    ProjectSave[]
 
   @@index([createdById])
   @@index([status])
@@ -318,6 +320,20 @@ model ProjectFile {
   createdAt  DateTime @default(now())
 
   project GraduationProject @relation(fields: [projectId], references: [id])
+}
+
+model ProjectSave {
+  id        String   @id @default(uuid())
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project GraduationProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
 }
 
 //////////////////////

@@ -20,7 +20,9 @@ import {
   ProjectFileResponse,
   ProjectResponse,
   ProjectsListResponse,
+  SaveProjectResponse,
   StringObject,
+  UnsaveProjectResponse,
   UpdateProject,
   updateProjectSchema,
 } from "./project.interface";
@@ -211,14 +213,42 @@ class ProjectController {
       orderBy: { createdAt: "desc" },
     });
 
+    let paidProjectIds = new Set<string>();
+    if (req.user?.userId && projects.length > 0) {
+      const payments = await prisma.payment.findMany({
+        where: {
+          buyerId: req.user.userId,
+          status: "SUCCESS",
+          projectId: { in: projects.map((project) => project.id) },
+        },
+        select: { projectId: true },
+      });
+      paidProjectIds = new Set(payments.map((payment) => payment.projectId));
+    }
+
     res.status(200).json({
       success: true,
       message: "Projects fetched successfully.",
       results: projects.length,
-      projects: projects.map((project) => ({
-        ...this.mapProject({ ...project, files: [] }),
-        filesCount: project.files.length,
-      })),
+      projects: projects.map((project) => {
+        const isOwner = req.user?.userId === project.createdById;
+        const isAdmin = req.user?.role === "SYSTEM_ADMIN";
+        const hasPaid = req.user?.userId
+          ? paidProjectIds.has(project.id)
+          : false;
+        const canViewDetails =
+          project.ideaType === "FREE" || isOwner || isAdmin || hasPaid;
+
+        return {
+          ...this.mapProject({
+            ...project,
+            files: [],
+            details: canViewDetails ? project.details : null,
+          }),
+          detailsHidden: !canViewDetails,
+          filesCount: project.files.length,
+        };
+      }),
     });
   };
 
@@ -250,10 +280,42 @@ class ProjectController {
       throw new AppError("Project not found.", 404);
     }
 
+    await prisma.graduationProject.update({
+      where: { id: project.id },
+      data: { viewsCount: { increment: 1 } },
+    });
+    project.viewsCount += 1;
+
+    const isOwner = req.user?.userId === project.createdById;
+    const isAdmin = req.user?.role === "SYSTEM_ADMIN";
+    const hasPaid = req.user?.userId
+      ? !!(await prisma.payment.findFirst({
+          where: {
+            buyerId: req.user.userId,
+            projectId: project.id,
+            status: "SUCCESS",
+          },
+          select: { id: true },
+        }))
+      : false;
+    const canViewDetails =
+      project.ideaType === "FREE" || isOwner || isAdmin || hasPaid;
+    const filesCount = project.files.length;
+
+    if (!canViewDetails) {
+      project.details = null;
+      // Ideally lock files too since they are paid content
+      project.files = [];
+    }
+
     res.status(200).json({
       success: true,
       message: "Project fetched successfully.",
-      project: this.mapProject(project),
+      project: {
+        ...this.mapProject(project),
+        detailsHidden: !canViewDetails,
+        filesCount,
+      },
     });
   };
 
@@ -338,6 +400,12 @@ class ProjectController {
   ) => {
     const params = zodValidation(idParamSchema, req.params);
     const payload = zodValidation(updateProjectSchema, req.body);
+    const p: Partial<UpdateProject> & Record<string, any> = { ...payload };
+
+    // If changing to FREE and no price was provided, default price to 0 to keep consistency
+    if (p.ideaType === "FREE" && p.price === undefined) {
+      p.price = 0;
+    }
 
     await this.canManageProject(params.id, req.user.userId, req.user.role);
 
@@ -345,35 +413,27 @@ class ProjectController {
       const updatedProject = await tx.graduationProject.update({
         where: { id: params.id },
         data: {
-          ...(payload.title ? { title: payload.title } : {}),
-          ...(payload.summary ? { summary: payload.summary } : {}),
-          ...(payload.description !== undefined
-            ? { description: payload.description }
+          ...(p.title ? { title: p.title } : {}),
+          ...(p.summary ? { summary: p.summary } : {}),
+          ...(p.description !== undefined
+            ? { description: p.description }
             : {}),
-          ...(payload.ideaType ? { ideaType: payload.ideaType } : {}),
-          ...(payload.price !== undefined ? { price: payload.price } : {}),
-          ...(payload.universityId !== undefined
-            ? { universityId: payload.universityId }
+          ...(p.ideaType ? { ideaType: p.ideaType } : {}),
+          ...(p.price !== undefined ? { price: p.price } : {}),
+          ...(p.universityId !== undefined
+            ? { universityId: p.universityId }
             : {}),
-          ...(payload.collegeId !== undefined
-            ? { collegeId: payload.collegeId }
+          ...(p.collegeId !== undefined ? { collegeId: p.collegeId } : {}),
+          ...(p.departmentId !== undefined
+            ? { departmentId: p.departmentId }
             : {}),
-          ...(payload.departmentId !== undefined
-            ? { departmentId: payload.departmentId }
+          ...(p.technologies ? { technologies: p.technologies } : {}),
+          ...(p.requiredSkills ? { requiredSkills: p.requiredSkills } : {}),
+          ...(p.isPublished !== undefined
+            ? { isPublished: p.isPublished }
             : {}),
-          ...(payload.technologies
-            ? { technologies: payload.technologies }
-            : {}),
-          ...(payload.requiredSkills
-            ? { requiredSkills: payload.requiredSkills }
-            : {}),
-          ...(payload.isPublished !== undefined
-            ? { isPublished: payload.isPublished }
-            : {}),
-          ...(payload.isApproved !== undefined
-            ? { isApproved: payload.isApproved }
-            : {}),
-          ...(payload.status ? { status: payload.status } : {}),
+          ...(p.isApproved !== undefined ? { isApproved: p.isApproved } : {}),
+          ...(p.status ? { status: p.status } : {}),
         },
       });
 
@@ -590,6 +650,103 @@ class ProjectController {
     });
   };
 
+  public saveProject = async (
+    req: Request<IdParam>,
+    res: Response<SaveProjectResponse>,
+    _next: NextFunction,
+  ) => {
+    const params = zodValidation(idParamSchema, req.params);
+
+    const project = await prisma.graduationProject.findFirst({
+      where: { id: params.id, isPublished: true },
+      select: { id: true },
+    });
+
+    if (!project) {
+      throw new AppError("Project not found.", 404);
+    }
+
+    const existingSave = await prisma.projectSave.findUnique({
+      where: {
+        userId_projectId: {
+          userId: req.user.userId,
+          projectId: params.id,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existingSave) {
+      throw new AppError("Project already saved.", 409);
+    }
+
+    const [, updatedProject] = await prisma.$transaction([
+      prisma.projectSave.create({
+        data: {
+          userId: req.user.userId,
+          projectId: params.id,
+        },
+      }),
+      prisma.graduationProject.update({
+        where: { id: params.id },
+        data: { savesCount: { increment: 1 } },
+        select: { savesCount: true },
+      }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: "Project saved successfully.",
+      projectId: params.id,
+      savesCount: updatedProject.savesCount,
+    });
+  };
+
+  public unsaveProject = async (
+    req: Request<IdParam>,
+    res: Response<UnsaveProjectResponse>,
+    _next: NextFunction,
+  ) => {
+    const params = zodValidation(idParamSchema, req.params);
+
+    const existingSave = await prisma.projectSave.findUnique({
+      where: {
+        userId_projectId: {
+          userId: req.user.userId,
+          projectId: params.id,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!existingSave) {
+      throw new AppError("Project is not saved.", 404);
+    }
+
+    const [, updatedProject] = await prisma.$transaction([
+      prisma.projectSave.delete({
+        where: {
+          userId_projectId: {
+            userId: req.user.userId,
+            projectId: params.id,
+          },
+        },
+      }),
+      prisma.graduationProject.update({
+        where: { id: params.id },
+        data: { savesCount: { decrement: 1 } },
+        select: { savesCount: true },
+      }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: "Project unsaved successfully.",
+      projectId: params.id,
+      savesCount: updatedProject.savesCount,
+    });
+  };
+
   public addProjectFile = async (
     req: Request<IdParam, StringObject, AddProjectFile>,
     res: Response<MessageResponse & { file: ProjectFileResponse }>,
@@ -636,6 +793,7 @@ class ProjectController {
 
     if (project.ideaType === "PAID") {
       const isOwner = req.user?.userId === project.createdById;
+      const isAdmin = req.user?.role === "SYSTEM_ADMIN";
       let hasAccess = false;
 
       if (req.user?.userId) {
@@ -650,7 +808,7 @@ class ProjectController {
         hasAccess = !!successfulPayment;
       }
 
-      if (!isOwner && !hasAccess) {
+      if (!isOwner && !isAdmin && !hasAccess) {
         throw new AppError(
           "You need to purchase this project to access its files.",
           403,
