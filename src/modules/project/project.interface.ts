@@ -113,6 +113,8 @@ export const getProjectsQuerySchema = z.object({
   ideaType: z.enum(["FREE", "PAID"]).optional(),
   createdById: z.string().trim().uuid().optional(),
   universityId: z.string().trim().uuid().optional(),
+  collegeId: z.string().trim().uuid().optional(),
+  departmentId: z.string().trim().uuid().optional(),
   isPublished: z.preprocess((value) => {
     if (typeof value === "string") {
       if (value.toLowerCase() === "true") return true;

@@ -12,6 +12,9 @@ export const createTeamSchema = z.object({
   name: z.string().trim().min(2).max(100),
   description: z.string().trim().max(500).optional(),
   projectId: z.string().trim().uuid().optional(),
+  universityId: z.string().trim().uuid().optional(),
+  collegeId: z.string().trim().uuid().optional(),
+  departmentId: z.string().trim().uuid().optional(),
   maxMembers: z.number().int().min(2).max(50).optional(),
 }) satisfies ZodType;
 
@@ -20,6 +23,9 @@ export const updateTeamSchema = z
     name: z.string().trim().min(2).max(100).optional(),
     description: z.string().trim().max(500).nullable().optional(),
     projectId: z.string().trim().uuid().nullable().optional(),
+    universityId: z.string().trim().uuid().nullable().optional(),
+    collegeId: z.string().trim().uuid().nullable().optional(),
+    departmentId: z.string().trim().uuid().nullable().optional(),
     maxMembers: z.number().int().min(2).max(50).optional(),
     status: z.enum(["DRAFT", "SUBMITTED", "PUBLISHED", "COMPLETED"]).optional(),
   })
@@ -41,6 +47,9 @@ export const getTeamsQuerySchema = z.object({
   status: z.enum(["DRAFT", "SUBMITTED", "PUBLISHED", "COMPLETED"]).optional(),
   mentorId: z.string().trim().uuid().optional(),
   projectId: z.string().trim().uuid().optional(),
+  universityId: z.string().trim().uuid().optional(),
+  collegeId: z.string().trim().uuid().optional(),
+  departmentId: z.string().trim().uuid().optional(),
 }) satisfies ZodType;
 
 export const getTeamMembersQuerySchema = z.object({

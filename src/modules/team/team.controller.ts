@@ -85,6 +85,39 @@ class TeamController {
         ...(query.status ? { status: query.status } : {}),
         ...(query.mentorId ? { mentorId: query.mentorId } : {}),
         ...(query.projectId ? { projectId: query.projectId } : {}),
+        ...(query.universityId
+          ? {
+              members: {
+                some: {
+                  user: { universityId: query.universityId },
+                  role: "TEAM_ADMIN",
+                  status: "APPROVED",
+                },
+              },
+            }
+          : {}),
+        ...(query.collegeId
+          ? {
+              members: {
+                some: {
+                  user: { collegeId: query.collegeId },
+                  role: "TEAM_ADMIN",
+                  status: "APPROVED",
+                },
+              },
+            }
+          : {}),
+        ...(query.departmentId
+          ? {
+              members: {
+                some: {
+                  user: { departmentId: query.departmentId },
+                  role: "TEAM_ADMIN",
+                  status: "APPROVED",
+                },
+              },
+            }
+          : {}),
       },
       include: {
         members: { select: { id: true } },
@@ -196,6 +229,26 @@ class TeamController {
       }
     }
 
+    // Ensure team university/college/department match the creating user's values
+    const creator = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { universityId: true, collegeId: true, departmentId: true },
+    });
+
+    if (!creator) {
+      throw new AppError("Creating user not found.", 404);
+    }
+
+    if (payload.universityId && payload.universityId !== creator.universityId) {
+      throw new AppError("Team university must match your university.", 400);
+    }
+    if (payload.collegeId && payload.collegeId !== creator.collegeId) {
+      throw new AppError("Team college must match your college.", 400);
+    }
+    if (payload.departmentId && payload.departmentId !== creator.departmentId) {
+      throw new AppError("Team department must match your department.", 400);
+    }
+
     const team = await prisma.$transaction(async (tx) => {
       const createdTeam = await tx.team.create({
         data: {
@@ -204,6 +257,7 @@ class TeamController {
           projectId: payload.projectId,
           maxMembers: payload.maxMembers ?? 5,
           status: "DRAFT",
+          // Team is implicitly linked to creator's uni/college/department via membership
         },
       });
 
