@@ -420,6 +420,7 @@ model JoinRequest {
 model Task {
   id          String     @id @default(uuid())
   teamId      String
+  milestoneId String?
   title       String
   description String?
   status      TaskStatus @default(TODO)
@@ -431,9 +432,11 @@ model Task {
   updatedAt DateTime @updatedAt
 
   team     Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  milestone Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   assignee User? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
 
   @@index([teamId])
+  @@index([milestoneId])
   @@index([assignedTo])
   @@index([status])
 }
@@ -456,6 +459,7 @@ model Milestone {
   team     Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
   project  GraduationProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   reviewer User?             @relation(fields: [reviewedBy], references: [id], onDelete: SetNull)
+  tasks    Task[]
 
   @@index([teamId])
   @@index([projectId])

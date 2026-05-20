@@ -14,6 +14,7 @@ export const createMilestoneSchema = z.object({
   title: z.string().trim().min(2).max(200),
   description: z.string().trim().max(1000).optional(),
   dueDate: z.coerce.date().optional(),
+  taskIds: z.array(z.string().trim().uuid()).min(1),
 }) satisfies ZodType;
 
 export const updateMilestoneSchema = z
@@ -75,6 +76,12 @@ export type MilestoneResponse = {
   reviewNotes: string | null;
   createdAt: Date;
   updatedAt: Date;
+  tasks?: {
+    id: string;
+    title: string;
+    status: string;
+    assignedTo: string | null;
+  }[];
 };
 
 export type MilestoneDetailsResponse = MessageResponse & {

@@ -31,13 +31,49 @@ class MilestoneController {
     _next: NextFunction,
   ) => {
     const query = zodValidation(getMilestonesQuerySchema, req.query);
+    // Determine allowed teams for the user
+    let allowedTeamIds: string[] = [];
+    if (req.user.role !== "SYSTEM_ADMIN") {
+      const memberTeams = await prisma.teamMember.findMany({
+        where: { userId: req.user.userId },
+        select: { teamId: true },
+      });
+      const mentorTeams = await prisma.team.findMany({
+        where: { mentorId: req.user.userId },
+        select: { id: true },
+      });
+
+      allowedTeamIds = [
+        ...new Set([
+          ...memberTeams.map((m) => m.teamId),
+          ...mentorTeams.map((t) => t.id),
+        ]),
+      ];
+    }
+
+    // If a specific teamId was requested, ensure user has access
+    if (query.teamId && req.user.role !== "SYSTEM_ADMIN") {
+      if (!allowedTeamIds.includes(query.teamId)) {
+        throw new AppError(
+          "Not authorized to view milestones for this team.",
+          403,
+        );
+      }
+    }
+
+    const whereClause: any = {
+      ...(query.teamId ? { teamId: query.teamId } : {}),
+      ...(query.projectId ? { projectId: query.projectId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+    };
+
+    if (req.user.role !== "SYSTEM_ADMIN") {
+      whereClause.teamId = { in: allowedTeamIds };
+      if (query.teamId) whereClause.teamId = query.teamId; // already validated above
+    }
 
     const milestones = await prisma.milestone.findMany({
-      where: {
-        ...(query.teamId ? { teamId: query.teamId } : {}),
-        ...(query.projectId ? { projectId: query.projectId } : {}),
-        ...(query.status ? { status: query.status } : {}),
-      },
+      where: whereClause,
       include: {
         reviewer: {
           select: {
@@ -47,6 +83,9 @@ class MilestoneController {
             lastName: true,
             profilePictureUrl: true,
           },
+        },
+        tasks: {
+          select: { id: true, title: true, status: true, assignedTo: true },
         },
       },
       orderBy: { dueDate: "asc" },
@@ -79,11 +118,26 @@ class MilestoneController {
             profilePictureUrl: true,
           },
         },
+        tasks: {
+          select: { id: true, title: true, status: true, assignedTo: true },
+        },
+        team: true,
       },
     });
 
     if (!milestone) {
       throw new AppError("Milestone not found.", 404);
+    }
+    // Restrict access to team members / mentors
+    if (req.user.role !== "SYSTEM_ADMIN") {
+      const isMember = await prisma.teamMember.findUnique({
+        where: {
+          teamId_userId: { teamId: milestone.teamId, userId: req.user.userId },
+        },
+      });
+      if (!isMember && milestone.team.mentorId !== req.user.userId) {
+        throw new AppError("Not authorized to view this milestone.", 403);
+      }
     }
 
     res.status(200).json({
@@ -134,6 +188,20 @@ class MilestoneController {
       throw new AppError("Project not found.", 404);
     }
 
+    // Validate provided tasks belong to the team
+    const tasks = await prisma.task.findMany({
+      where: { id: { in: payload.taskIds } },
+      select: { id: true, teamId: true },
+    });
+
+    if (tasks.length !== payload.taskIds.length) {
+      throw new AppError("One or more tasks not found.", 404);
+    }
+
+    if (tasks.some((t) => t.teamId !== payload.teamId)) {
+      throw new AppError("All tasks must belong to the milestone's team.", 400);
+    }
+
     const milestone = await prisma.milestone.create({
       data: {
         teamId: payload.teamId,
@@ -143,6 +211,27 @@ class MilestoneController {
         dueDate: payload.dueDate,
       },
     });
+
+    // Link tasks to milestone
+    await prisma.task.updateMany({
+      where: { id: { in: payload.taskIds } },
+      data: { milestoneId: milestone.id },
+    });
+
+    // Notify team members
+    const teamMembers = await prisma.teamMember.findMany({
+      where: { teamId: payload.teamId },
+      select: { userId: true },
+    });
+    for (const member of teamMembers) {
+      await notificationController.createNotification({
+        userId: member.userId,
+        type: "MILESTONE_STATUS_CHANGED",
+        title: "New Milestone Added",
+        content: `Milestone "${milestone.title}" was added to your team.`,
+        relatedEntityId: milestone.id,
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -198,8 +287,22 @@ class MilestoneController {
           : {}),
         ...(payload.dueDate !== undefined ? { dueDate: payload.dueDate } : {}),
       },
+      include: { team: true },
     });
-
+    // Notify team members about update
+    const teamMembers = await prisma.teamMember.findMany({
+      where: { teamId: updated.teamId },
+      select: { userId: true },
+    });
+    for (const member of teamMembers) {
+      await notificationController.createNotification({
+        userId: member.userId,
+        type: "MILESTONE_STATUS_CHANGED",
+        title: "Milestone Updated",
+        content: `Milestone "${updated.title}" was updated.`,
+        relatedEntityId: updated.id,
+      });
+    }
     res.status(200).json({
       success: true,
       message: "Milestone updated successfully.",
@@ -218,12 +321,7 @@ class MilestoneController {
       where: { id: params.id },
       include: {
         team: {
-          include: {
-            members: {
-              where: { userId: req.user.userId },
-              select: { role: true },
-            },
-          },
+          include: { members: { select: { userId: true, role: true } } },
         },
       },
     });
@@ -244,14 +342,26 @@ class MilestoneController {
       );
     }
 
-    await prisma.milestone.delete({
-      where: { id: params.id },
-    });
+    // Collect member ids for notification
+    const membersForNotify = (milestone.team as any).members as {
+      userId: string;
+    }[];
 
-    res.status(200).json({
-      success: true,
-      message: "Milestone deleted successfully.",
-    });
+    await prisma.milestone.delete({ where: { id: params.id } });
+
+    for (const m of membersForNotify) {
+      await notificationController.createNotification({
+        userId: m.userId,
+        type: "MILESTONE_STATUS_CHANGED",
+        title: "Milestone Deleted",
+        content: `A milestone ("${milestone.title}") was deleted from your team.`,
+        relatedEntityId: params.id,
+      });
+    }
+
+    res
+      .status(200)
+      .json({ success: true, message: "Milestone deleted successfully." });
   };
 
   public submitMilestone = async (
@@ -279,6 +389,21 @@ class MilestoneController {
 
     if (!isMember && req.user.role !== "SYSTEM_ADMIN") {
       throw new AppError("Only team members can submit milestones.", 403);
+    }
+
+    // Ensure all linked tasks are completed (DONE or APPROVED) before submission
+    const incompleteCount = await prisma.task.count({
+      where: {
+        milestoneId: params.id,
+        NOT: { status: { in: ["DONE", "APPROVED"] } },
+      },
+    });
+
+    if (incompleteCount > 0) {
+      throw new AppError(
+        "Cannot submit milestone until all linked tasks are completed.",
+        400,
+      );
     }
 
     const updated = await prisma.milestone.update({
@@ -331,6 +456,18 @@ class MilestoneController {
       throw new AppError("Only mentor or admin can review milestones.", 403);
     }
 
+    // Ensure all linked tasks are APPROVED before any review
+    const notApprovedCount = await prisma.task.count({
+      where: { milestoneId: params.id, NOT: { status: "APPROVED" } },
+    });
+
+    if (notApprovedCount > 0) {
+      throw new AppError(
+        "All linked tasks must be approved before reviewing this milestone.",
+        400,
+      );
+    }
+
     const updated = await prisma.milestone.update({
       where: { id: params.id },
       data: {
@@ -338,6 +475,7 @@ class MilestoneController {
         reviewedBy: req.user.userId,
         reviewNotes: payload.reviewNotes,
       },
+      include: { team: true },
     });
 
     // Notify team of review
