@@ -25,24 +25,41 @@ export const projectFileSchema = z.object({
 export const projectDetailSchema = z.object({
   detailedDescription: z.string().trim().max(5000).optional(),
   implementationGuide: z.string().trim().max(5000).optional(),
-  deliverables: z.array(z.string().trim().min(1).max(255)).default([]),
+  deliverables: z.array(z.string().trim().min(1).max(255)).min(1),
   documentationUrl: z.string().trim().url().optional(),
 }) satisfies ZodType;
 
-export const createProjectSchema = z.object({
-  title: z.string().trim().min(2).max(200),
-  summary: z.string().trim().min(10).max(500),
-  description: z.string().trim().max(5000).optional(),
-  ideaType: z.enum(["FREE", "PAID"]).default("FREE"),
-  price: z.number().min(0).default(0),
-  universityId: z.string().trim().uuid().optional(),
-  collegeId: z.string().trim().uuid().optional(),
-  departmentId: z.string().trim().uuid().optional(),
-  technologies: z.array(z.string().trim().min(1).max(100)).default([]),
-  requiredSkills: z.array(z.string().trim().min(1).max(100)).default([]),
-  details: projectDetailSchema.optional(),
-  files: z.array(projectFileSchema).default([]),
-}) satisfies ZodType;
+export const createProjectSchema = z
+  .object({
+    title: z.string().trim().min(2).max(200),
+    summary: z.string().trim().min(10).max(500),
+    description: z.string().trim().max(5000).optional(),
+    ideaType: z.enum(["FREE", "PAID"]).default("FREE"),
+    price: z.number().min(0).default(0),
+    universityId: z.string().trim().uuid().optional(),
+    collegeId: z.string().trim().uuid().optional(),
+    departmentId: z.string().trim().uuid().optional(),
+    technologies: z.array(z.string().trim().min(1).max(100)).default([]),
+    requiredSkills: z.array(z.string().trim().min(1).max(100)).default([]),
+    details: projectDetailSchema.optional(),
+    files: z.array(projectFileSchema).default([]),
+  })
+  .refine(
+    (val) => {
+      if (val.ideaType === "FREE") {
+        return val.price === 0;
+      }
+      if (val.ideaType === "PAID") {
+        return val.price > 0 && val.price <= 10;
+      }
+      return true;
+    },
+    {
+      message:
+        "For FREE projects, price must be 0 (or omitted). For PAID projects, price must be > 0 and <= 10.",
+      path: ["price"],
+    },
+  ) satisfies ZodType;
 
 export const updateProjectSchema = z
   .object({
@@ -63,7 +80,30 @@ export const updateProjectSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required.",
-  }) satisfies ZodType;
+  })
+  .refine(
+    (val) => {
+      // Only enforce ideaType <-> price rules when ideaType is provided
+      if (val.ideaType !== undefined) {
+        if (val.ideaType === "FREE") {
+          // When changing to FREE, price must be 0 or omitted (controller will set 0 if omitted)
+          return val.price === undefined || val.price === 0;
+        }
+        if (val.ideaType === "PAID") {
+          // When changing to PAID, require a price and enforce range
+          return (
+            typeof val.price === "number" && val.price > 0 && val.price <= 10
+          );
+        }
+      }
+      return true;
+    },
+    {
+      message:
+        "When changing ideaType: FREE requires price 0 (or omitted). PAID requires price > 0 and < 10.",
+      path: ["price"],
+    },
+  ) satisfies ZodType;
 
 export const addProjectFileSchema = projectFileSchema;
 
@@ -73,6 +113,8 @@ export const getProjectsQuerySchema = z.object({
   ideaType: z.enum(["FREE", "PAID"]).optional(),
   createdById: z.string().trim().uuid().optional(),
   universityId: z.string().trim().uuid().optional(),
+  collegeId: z.string().trim().uuid().optional(),
+  departmentId: z.string().trim().uuid().optional(),
   isPublished: z.preprocess((value) => {
     if (typeof value === "string") {
       if (value.toLowerCase() === "true") return true;
@@ -154,7 +196,9 @@ export type ProjectDetailsResponse = MessageResponse & {
   project: ProjectResponse & {
     creator: UserPreviewResponse;
     details: ProjectDetailResponse | null;
+    detailsHidden: boolean;
     files: ProjectFileResponse[];
+    filesCount: number;
   };
 };
 
@@ -163,6 +207,7 @@ export type ProjectsListResponse = MessageResponse & {
   projects: (ProjectResponse & {
     creator: UserPreviewResponse;
     details: ProjectDetailResponse | null;
+    detailsHidden: boolean;
     filesCount: number;
   })[];
 };
@@ -170,4 +215,14 @@ export type ProjectsListResponse = MessageResponse & {
 export type ProjectFileListResponse = MessageResponse & {
   results: number;
   files: ProjectFileResponse[];
+};
+
+export type SaveProjectResponse = MessageResponse & {
+  projectId: string;
+  savesCount: number;
+};
+
+export type UnsaveProjectResponse = MessageResponse & {
+  projectId: string;
+  savesCount: number;
 };

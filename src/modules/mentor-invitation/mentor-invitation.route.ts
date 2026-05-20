@@ -10,13 +10,13 @@ const router = Router();
 router.use(protect);
 
 // Team Admin invites mentor
-router.post("/:id/invite", mentorInvitationController.inviteMentor);
+router.post("/:teamId/invite", mentorInvitationController.inviteMentor);
 
 // Mentor views pending invitations
 router.get("/pending", mentorInvitationController.getPendingInvitations);
 
 // Mentor accepts/rejects invitation
-router.post("/:id/accept", mentorInvitationController.acceptInvitation);
-router.post("/:id/reject", mentorInvitationController.rejectInvitation);
+router.post("/:teamId/accept", mentorInvitationController.acceptInvitation);
+router.post("/:teamId/reject", mentorInvitationController.rejectInvitation);
 
 export default router;

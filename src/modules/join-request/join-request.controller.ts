@@ -32,6 +32,15 @@ class JoinRequestController {
     });
     if (!team) throw new AppError("Team not found.", 404);
 
+    // Block users who have reached removal strike limit from requesting to join teams
+    const requestingUser = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { removalStrikes: true },
+    });
+    if (requestingUser?.removalStrikes && requestingUser.removalStrikes >= 3) {
+      throw new AppError("You are blocked from joining teams.", 403);
+    }
+
     // check user is not already a member
     const existingMember = await prisma.teamMember.findUnique({
       where: {
@@ -194,6 +203,15 @@ class JoinRequestController {
 
       if (existingMember) {
         throw new AppError("User is already a member of this team.", 409);
+      }
+
+      // Prevent accepting users who have 3+ removal strikes
+      const targetUser = await prisma.user.findUnique({
+        where: { id: request.userId },
+        select: { removalStrikes: true },
+      });
+      if (targetUser?.removalStrikes && targetUser.removalStrikes >= 3) {
+        throw new AppError("User is blocked from joining teams.", 403);
       }
 
       if (memberCount >= team.maxMembers) {

@@ -186,25 +186,36 @@ class PaymentController {
     const processedAt = autoConfirm ? new Date() : null;
     const transactionId = autoConfirm ? `TXN_${Date.now()}` : null;
 
-    const payment = await prisma.payment.create({
-      data: {
-        buyerId: req.user.userId,
-        projectId: payload.projectId,
-        amount: project.price,
-        paymentMethod: payload.paymentMethod,
-        status: initialStatus,
-        transactionId,
-        processedAt,
-      },
-      include: {
-        project: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
+    const payment = await prisma.$transaction(async (tx) => {
+      const created = await tx.payment.create({
+        data: {
+          buyerId: req.user.userId,
+          projectId: payload.projectId,
+          amount: project.price,
+          paymentMethod: payload.paymentMethod,
+          status: initialStatus,
+          transactionId,
+          processedAt,
+        },
+        include: {
+          project: {
+            select: {
+              id: true,
+              title: true,
+              price: true,
+            },
           },
         },
-      },
+      });
+
+      if (created.status === "SUCCESS") {
+        await tx.graduationProject.update({
+          where: { id: created.projectId },
+          data: { purchaseCount: { increment: 1 } },
+        });
+      }
+
+      return created;
     });
 
     res.status(201).json({
@@ -238,30 +249,51 @@ class PaymentController {
       throw new AppError("Payment not found.", 404);
     }
 
-    const updated = await prisma.payment.update({
-      where: { id: params.id },
-      data: {
-        status: payload.status,
-        ...(payload.status === "SUCCESS"
-          ? {
-              processedAt: new Date(),
-              transactionId: payment.transactionId ?? `TXN_${Date.now()}`,
-            }
-          : payload.status === "FAILED"
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedPayment = await tx.payment.update({
+        where: { id: params.id },
+        data: {
+          status: payload.status,
+          ...(payload.status === "SUCCESS"
             ? {
-                processedAt: null,
+                processedAt: new Date(),
+                transactionId: payment.transactionId ?? `TXN_${Date.now()}`,
               }
-            : {}),
-      },
-      include: {
-        project: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
+            : payload.status === "FAILED"
+              ? {
+                  processedAt: null,
+                }
+              : {}),
+        },
+        include: {
+          project: {
+            select: {
+              id: true,
+              title: true,
+              price: true,
+            },
           },
         },
-      },
+      });
+
+      const wasSuccess = payment.status === "SUCCESS";
+      const isSuccess = payload.status === "SUCCESS";
+
+      if (!wasSuccess && isSuccess) {
+        await tx.graduationProject.update({
+          where: { id: payment.projectId },
+          data: { purchaseCount: { increment: 1 } },
+        });
+      }
+
+      if (wasSuccess && !isSuccess) {
+        await tx.graduationProject.update({
+          where: { id: payment.projectId },
+          data: { purchaseCount: { decrement: 1 } },
+        });
+      }
+
+      return updatedPayment;
     });
 
     res.status(200).json({

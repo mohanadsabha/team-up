@@ -1,10 +1,15 @@
 import { Router } from "express";
 import { projectController } from "./project.controller";
-import { protect, restrictTo } from "../../middleware/auth.middleware";
+import {
+  optionalAuth,
+  protect,
+  restrictTo,
+} from "../../middleware/auth.middleware";
 
 const router = Router();
 
 // Public project discovery
+router.use(optionalAuth);
 router.get("/", projectController.getProjects);
 router.get("/:id", projectController.getProjectById);
 router.get("/:id/files", projectController.getProjectFiles);
@@ -16,6 +21,8 @@ router.post("/", projectController.createProject);
 router.patch("/:id", projectController.updateProject);
 router.delete("/:id", projectController.deleteProject);
 router.post("/:id/submit", projectController.submitProject);
+router.post("/:id/save", projectController.saveProject);
+router.delete("/:id/save", projectController.unsaveProject);
 router.post("/:id/files", projectController.addProjectFile);
 router.delete("/:id/files/:fileId", projectController.deleteProjectFile);
 

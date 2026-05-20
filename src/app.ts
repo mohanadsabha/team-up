@@ -19,6 +19,7 @@ import mentorInvitationRoutes from "./modules/mentor-invitation/mentor-invitatio
 import milestoneRoutes from "./modules/milestone/milestone.route";
 import chatRoutes from "./modules/chat/chat.route";
 import meetingRoutes from "./modules/meeting/meeting.route";
+import joinRequestRoutes from "./modules/join-request/join-request.route";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -65,6 +66,7 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/institutions", institutionRoutes);
 app.use("/api/v1/teams", teamRoutes);
 app.use("/api/v1/mentor-invitations", mentorInvitationRoutes);
+app.use("/api/v1/join-requests", joinRequestRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/tasks", taskRoutes);
 app.use("/api/v1/milestones", milestoneRoutes);
