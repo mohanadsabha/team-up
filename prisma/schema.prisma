@@ -102,7 +102,7 @@ enum MilestoneStatus {
 
 enum ChatType {
   TEAM
-  DIRECT
+  JOIN_REQUEST
 }
 
 enum MeetingStatus {
@@ -412,6 +412,7 @@ model JoinRequest {
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat Chat?
 
   @@index([teamId])
   @@index([userId])
@@ -473,11 +474,15 @@ model Chat {
   id        String   @id @default(uuid())
   teamId    String
   type      ChatType @default(TEAM)
+  joinRequestId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   messages Message[]
+  joinRequest JoinRequest? @relation(fields: [joinRequestId], references: [id], onDelete: SetNull)
+
+  @@unique([joinRequestId])
 }
 
 model Message {
