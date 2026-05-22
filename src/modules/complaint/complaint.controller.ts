@@ -30,14 +30,6 @@ class ComplaintController {
     const complaints = await prisma.complaint.findMany({
       where: {
         ...(query.status ? { status: query.status } : {}),
-        ...(query.startDate || query.endDate
-          ? {
-              createdAt: {
-                ...(query.startDate ? { gte: query.startDate } : {}),
-                ...(query.endDate ? { lte: query.endDate } : {}),
-              },
-            }
-          : {}),
       },
       include: {
         reporter: {

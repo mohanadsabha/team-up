@@ -22,8 +22,6 @@ export const updateComplaintStatusSchema = z.object({
 
 export const getComplaintsQuerySchema = z.object({
   status: z.enum(["SUBMITTED", "INVESTIGATING", "RESOLVED"]).optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
 }) satisfies ZodType;
 
 export type CreateComplaint = z.infer<typeof createComplaintSchema>;
