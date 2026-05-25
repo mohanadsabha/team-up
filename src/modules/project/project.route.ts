@@ -11,6 +11,7 @@ const router = Router();
 // Public project discovery
 router.use(optionalAuth);
 router.get("/", projectController.getProjects);
+router.get("/saved", protect, projectController.getSavedProjects);
 router.get("/:id", projectController.getProjectById);
 router.get("/:id/files", projectController.getProjectFiles);
 
