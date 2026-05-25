@@ -21,6 +21,7 @@ export type RespondJoinRequest = z.infer<typeof respondJoinRequestSchema>;
 
 export const getRequestsQuerySchema = z.object({
   teamId: z.string().trim().uuid().optional(),
+  userId: z.string().trim().uuid().optional(),
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 }) satisfies ZodType;
 export type GetRequestsQuery = z.infer<typeof getRequestsQuerySchema>;
