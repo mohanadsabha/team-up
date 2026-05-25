@@ -235,7 +235,8 @@ class UserController {
         key: "academicProfile",
         completed:
           !!user.academicProfile &&
-          (!!user.academicProfile.major || user.academicProfile.skills.length > 0),
+          (!!user.academicProfile.major ||
+            user.academicProfile.skills.length > 0),
       },
     ];
 
@@ -279,6 +280,13 @@ class UserController {
 
     if (roleQueryRaw && !roleQuery) {
       throw new AppError("Invalid role filter value.", 400);
+    }
+
+    if (req.user.role !== "SYSTEM_ADMIN" && roleQuery !== UserRole.MENTOR) {
+      throw new AppError(
+        "Only system admins can list all users. Use role=MENTOR to fetch mentors.",
+        403,
+      );
     }
 
     const whereClause: Prisma.UserWhereInput = {
