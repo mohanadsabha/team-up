@@ -212,6 +212,17 @@ export type ProjectsListResponse = MessageResponse & {
   })[];
 };
 
+export type SavedProjectsResponse = MessageResponse & {
+  results: number;
+  savedProjects: (ProjectResponse & {
+    creator: UserPreviewResponse;
+    details: ProjectDetailResponse | null;
+    detailsHidden: boolean;
+    filesCount: number;
+    savedAt: Date;
+  })[];
+};
+
 export type ProjectFileListResponse = MessageResponse & {
   results: number;
   files: ProjectFileResponse[];

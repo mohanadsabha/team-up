@@ -20,6 +20,7 @@ import {
   ProjectFileResponse,
   ProjectResponse,
   ProjectsListResponse,
+  SavedProjectsResponse,
   SaveProjectResponse,
   StringObject,
   UnsaveProjectResponse,
@@ -249,6 +250,115 @@ class ProjectController {
           }),
           detailsHidden: !canViewDetails,
           filesCount: project.files.length,
+        };
+      }),
+    });
+  };
+
+  public getSavedProjects = async (
+    req: Request<StringObject, StringObject, StringObject, GetProjectsQuery>,
+    res: Response<SavedProjectsResponse>,
+    _next: NextFunction,
+  ) => {
+    const query = zodValidation(getProjectsQuerySchema, req.query);
+
+    const savedProjects = await prisma.projectSave.findMany({
+      where: {
+        userId: req.user.userId,
+        project: {
+          isPublished: true,
+          ...(query.search
+            ? {
+                OR: [
+                  {
+                    title: {
+                      contains: query.search,
+                      mode: "insensitive",
+                    },
+                  },
+                  {
+                    summary: {
+                      contains: query.search,
+                      mode: "insensitive",
+                    },
+                  },
+                  {
+                    description: {
+                      contains: query.search,
+                      mode: "insensitive",
+                    },
+                  },
+                ],
+              }
+            : {}),
+          ...(query.status ? { status: query.status } : {}),
+          ...(query.ideaType ? { ideaType: query.ideaType } : {}),
+          ...(query.createdById ? { createdById: query.createdById } : {}),
+          ...(query.universityId ? { universityId: query.universityId } : {}),
+          ...(query.collegeId ? { collegeId: query.collegeId } : {}),
+          ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+          ...(typeof query.isPublished === "boolean"
+            ? { isPublished: query.isPublished }
+            : {}),
+          ...(typeof query.isApproved === "boolean"
+            ? { isApproved: query.isApproved }
+            : {}),
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        project: {
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                profilePictureUrl: true,
+              },
+            },
+            details: true,
+            files: { select: { id: true } },
+          },
+        },
+      },
+    });
+
+    let paidProjectIds = new Set<string>();
+    if (savedProjects.length > 0) {
+      const payments = await prisma.payment.findMany({
+        where: {
+          buyerId: req.user.userId,
+          status: "SUCCESS",
+          projectId: { in: savedProjects.map((item) => item.project.id) },
+        },
+        select: { projectId: true },
+      });
+      paidProjectIds = new Set(payments.map((payment) => payment.projectId));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Saved projects fetched successfully.",
+      results: savedProjects.length,
+      savedProjects: savedProjects.map((item) => {
+        const project = item.project;
+        const isOwner = req.user.userId === project.createdById;
+        const isAdmin = req.user.role === "SYSTEM_ADMIN";
+        const hasPaid = paidProjectIds.has(project.id);
+        const canViewDetails =
+          project.ideaType === "FREE" || isOwner || isAdmin || hasPaid;
+
+        return {
+          ...this.mapProject({
+            ...project,
+            files: [],
+            details: canViewDetails ? project.details : null,
+          }),
+          detailsHidden: !canViewDetails,
+          filesCount: project.files.length,
+          savedAt: item.createdAt,
         };
       }),
     });
@@ -736,11 +846,21 @@ class ProjectController {
     const params = zodValidation(idParamSchema, req.params);
 
     const project = await prisma.graduationProject.findFirst({
-      where: { id: params.id, isPublished: true },
-      select: { id: true },
+      where: { id: params.id },
+      select: {
+        id: true,
+        createdById: true,
+        isPublished: true,
+      },
     });
 
     if (!project) {
+      throw new AppError("Project not found.", 404);
+    }
+
+    const isOwner = req.user.userId === project.createdById;
+
+    if (!isOwner && !project.isPublished) {
       throw new AppError("Project not found.", 404);
     }
 
