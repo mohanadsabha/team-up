@@ -20,6 +20,8 @@ import {
   ProjectFileResponse,
   ProjectResponse,
   ProjectsListResponse,
+  RejectProject,
+  rejectProjectSchema,
   SavedProjectsResponse,
   SaveProjectResponse,
   StringObject,
@@ -172,10 +174,11 @@ class ProjectController {
     _next: NextFunction,
   ) => {
     const query = zodValidation(getProjectsQuerySchema, req.query);
+    const isAdmin = req.user?.role === "SYSTEM_ADMIN";
 
     const projects = await prisma.graduationProject.findMany({
       where: {
-        isPublished: true,
+        ...(isAdmin ? {} : { isPublished: true }),
         ...(query.search
           ? {
               OR: [
@@ -370,9 +373,12 @@ class ProjectController {
     _next: NextFunction,
   ) => {
     const params = zodValidation(idParamSchema, req.params);
+    const isAdmin = req.user?.role === "SYSTEM_ADMIN";
 
     const project = await prisma.graduationProject.findFirst({
-      where: { id: params.id, isPublished: true },
+      where: isAdmin
+        ? { id: params.id }
+        : { id: params.id, isPublished: true },
       include: {
         createdBy: {
           select: {
@@ -399,7 +405,6 @@ class ProjectController {
     project.viewsCount += 1;
 
     const isOwner = req.user?.userId === project.createdById;
-    const isAdmin = req.user?.role === "SYSTEM_ADMIN";
     const hasPaid = req.user?.userId
       ? !!(await prisma.payment.findFirst({
           where: {
@@ -787,11 +792,12 @@ class ProjectController {
   };
 
   public rejectProject = async (
-    req: Request<IdParam>,
+    req: Request<IdParam, StringObject, RejectProject>,
     res: Response<MessageResponse & { project: ProjectResponse }>,
     _next: NextFunction,
   ) => {
     const params = zodValidation(idParamSchema, req.params);
+    const payload = zodValidation(rejectProjectSchema, req.body ?? {});
 
     const project = await prisma.graduationProject.findUnique({
       where: { id: params.id },
@@ -823,11 +829,15 @@ class ProjectController {
       },
     });
 
+    const reasonSuffix = payload.reason?.trim()
+      ? ` Reason: ${payload.reason.trim()}`
+      : "";
+
     await notificationController.createNotification({
       userId: updated.createdById,
       type: "PROJECT_REJECTED",
       title: "Project Rejected",
-      content: `Your project \"${updated.title}\" has been rejected and moved back to draft.`,
+      content: `Your project \"${updated.title}\" has been rejected and moved back to draft.${reasonSuffix}`,
       relatedEntityId: updated.id,
     });
 

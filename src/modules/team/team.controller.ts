@@ -12,6 +12,8 @@ import {
   IdParam,
   idParamSchema,
   MessageResponse,
+  RejectTeam,
+  rejectTeamSchema,
   StringObject,
   TeamDetailsResponse,
   TeamMembersListResponse,
@@ -69,6 +71,7 @@ class TeamController {
     _next: NextFunction,
   ) => {
     const query = zodValidation(getTeamsQuerySchema, req.query);
+    const isAdmin = req.user?.role === "SYSTEM_ADMIN";
 
     const teams = await prisma.team.findMany({
       where: {
@@ -120,23 +123,79 @@ class TeamController {
           : {}),
       },
       include: {
-        members: { select: { id: true } },
+        members: isAdmin
+          ? {
+              take: 5,
+              where: { status: "APPROVED" },
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                    role: true,
+                    profilePictureUrl: true,
+                  },
+                },
+              },
+            }
+          : { select: { id: true } },
+        ...(isAdmin
+          ? {
+              mentor: {
+                select: {
+                  id: true,
+                  username: true,
+                  firstName: true,
+                  lastName: true,
+                  role: true,
+                  profilePictureUrl: true,
+                },
+              },
+            }
+          : {}),
       },
       orderBy: { createdAt: "desc" },
     });
 
-    const teamResponses = teams.map((team) => ({
-      id: team.id,
-      name: team.name,
-      description: team.description,
-      projectId: team.projectId,
-      mentorId: team.mentorId,
-      status: team.status,
-      maxMembers: team.maxMembers,
-      memberCount: team.members.length,
-      createdAt: team.createdAt,
-      updatedAt: team.updatedAt,
-    }));
+    const teamResponses = teams.map((team) => {
+      const memberCount = isAdmin
+        ? team.members.length
+        : (team.members as { id: string }[]).length;
+
+      return {
+        id: team.id,
+        name: team.name,
+        description: team.description,
+        projectId: team.projectId,
+        mentorId: team.mentorId,
+        status: team.status,
+        previousStatus: team.previousStatus,
+        moderationState: team.moderationState,
+        maxMembers: team.maxMembers,
+        memberCount,
+        createdAt: team.createdAt,
+        updatedAt: team.updatedAt,
+        ...(isAdmin
+          ? {
+              mentor:
+                "mentor" in team
+                  ? (team.mentor as UserPreviewResponse | null)
+                  : null,
+              memberPreviews: Array.isArray(team.members)
+                ? team.members
+                    .map((member) =>
+                      "user" in member
+                        ? (member.user as UserPreviewResponse)
+                        : null,
+                    )
+                    .filter(Boolean)
+                : [],
+            }
+          : {}),
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -677,6 +736,191 @@ class TeamController {
     res.status(200).json({
       success: true,
       message: "Member removed from team successfully.",
+    });
+  };
+
+  public approveTeam = async (
+    req: Request<IdParam>,
+    res: Response<MessageResponse & { team: TeamResponse }>,
+    _next: NextFunction,
+  ) => {
+    const params = zodValidation(idParamSchema, req.params);
+
+    const team = await prisma.team.findUnique({
+      where: { id: params.id },
+      include: { members: { select: { id: true } } },
+    });
+
+    if (!team) {
+      throw new AppError("Team not found.", 404);
+    }
+
+    const updatedTeam = await prisma.team.update({
+      where: { id: params.id },
+      data: {
+        status: "PUBLISHED",
+        previousStatus: null,
+        moderationState: null,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Team approved successfully.",
+      team: {
+        id: updatedTeam.id,
+        name: updatedTeam.name,
+        description: updatedTeam.description,
+        projectId: updatedTeam.projectId,
+        mentorId: updatedTeam.mentorId,
+        status: updatedTeam.status,
+        previousStatus: updatedTeam.previousStatus,
+        moderationState: updatedTeam.moderationState,
+        maxMembers: updatedTeam.maxMembers,
+        memberCount: team.members.length,
+        createdAt: updatedTeam.createdAt,
+        updatedAt: updatedTeam.updatedAt,
+      },
+    });
+  };
+
+  public rejectTeam = async (
+    req: Request<IdParam, StringObject, RejectTeam>,
+    res: Response<MessageResponse & { team: TeamResponse }>,
+    _next: NextFunction,
+  ) => {
+    const params = zodValidation(idParamSchema, req.params);
+    const payload = zodValidation(rejectTeamSchema, req.body ?? {});
+
+    const team = await prisma.team.findUnique({
+      where: { id: params.id },
+      include: { members: { select: { id: true, userId: true } } },
+    });
+
+    if (!team) {
+      throw new AppError("Team not found.", 404);
+    }
+
+    const updatedTeam = await prisma.team.update({
+      where: { id: params.id },
+      data: {
+        previousStatus: team.status,
+        status: "DRAFT",
+        moderationState: "REJECTED",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: payload.reason?.trim()
+        ? `Team rejected successfully. Reason: ${payload.reason.trim()}`
+        : "Team rejected successfully.",
+      team: {
+        id: updatedTeam.id,
+        name: updatedTeam.name,
+        description: updatedTeam.description,
+        projectId: updatedTeam.projectId,
+        mentorId: updatedTeam.mentorId,
+        status: updatedTeam.status,
+        previousStatus: updatedTeam.previousStatus,
+        moderationState: updatedTeam.moderationState,
+        maxMembers: updatedTeam.maxMembers,
+        memberCount: team.members.length,
+        createdAt: updatedTeam.createdAt,
+        updatedAt: updatedTeam.updatedAt,
+      },
+    });
+  };
+
+  public disableTeam = async (
+    req: Request<IdParam>,
+    res: Response<MessageResponse & { team: TeamResponse }>,
+    _next: NextFunction,
+  ) => {
+    const params = zodValidation(idParamSchema, req.params);
+
+    const team = await prisma.team.findUnique({
+      where: { id: params.id },
+      include: { members: { select: { id: true } } },
+    });
+
+    if (!team) {
+      throw new AppError("Team not found.", 404);
+    }
+
+    const updatedTeam = await prisma.team.update({
+      where: { id: params.id },
+      data: {
+        previousStatus: team.status,
+        status: "DRAFT",
+        moderationState: "DISABLED",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Team disabled successfully.",
+      team: {
+        id: updatedTeam.id,
+        name: updatedTeam.name,
+        description: updatedTeam.description,
+        projectId: updatedTeam.projectId,
+        mentorId: updatedTeam.mentorId,
+        status: updatedTeam.status,
+        previousStatus: updatedTeam.previousStatus,
+        moderationState: updatedTeam.moderationState,
+        maxMembers: updatedTeam.maxMembers,
+        memberCount: team.members.length,
+        createdAt: updatedTeam.createdAt,
+        updatedAt: updatedTeam.updatedAt,
+      },
+    });
+  };
+
+  public enableTeam = async (
+    req: Request<IdParam>,
+    res: Response<MessageResponse & { team: TeamResponse }>,
+    _next: NextFunction,
+  ) => {
+    const params = zodValidation(idParamSchema, req.params);
+
+    const team = await prisma.team.findUnique({
+      where: { id: params.id },
+      include: { members: { select: { id: true } } },
+    });
+
+    if (!team) {
+      throw new AppError("Team not found.", 404);
+    }
+
+    const restoredStatus = team.previousStatus ?? "PUBLISHED";
+
+    const updatedTeam = await prisma.team.update({
+      where: { id: params.id },
+      data: {
+        status: restoredStatus,
+        previousStatus: null,
+        moderationState: null,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Team enabled successfully.",
+      team: {
+        id: updatedTeam.id,
+        name: updatedTeam.name,
+        description: updatedTeam.description,
+        projectId: updatedTeam.projectId,
+        mentorId: updatedTeam.mentorId,
+        status: updatedTeam.status,
+        previousStatus: updatedTeam.previousStatus,
+        moderationState: updatedTeam.moderationState,
+        maxMembers: updatedTeam.maxMembers,
+        memberCount: team.members.length,
+        createdAt: updatedTeam.createdAt,
+        updatedAt: updatedTeam.updatedAt,
+      },
     });
   };
 }

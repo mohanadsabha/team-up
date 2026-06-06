@@ -131,6 +131,12 @@ export const getProjectsQuerySchema = z.object({
   }, z.boolean().optional()),
 }) satisfies ZodType;
 
+export const rejectProjectSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+}) satisfies ZodType;
+
+export type RejectProject = z.infer<typeof rejectProjectSchema>;
+
 export type CreateProject = z.infer<typeof createProjectSchema>;
 export type UpdateProject = z.infer<typeof updateProjectSchema>;
 export type AddProjectFile = z.infer<typeof addProjectFileSchema>;

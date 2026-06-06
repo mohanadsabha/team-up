@@ -471,8 +471,14 @@ class UserController {
     const params = zodValidation(idParamSchema, req.params);
     const payload = zodValidation(updateUserStatusSchema, req.body);
 
-    if (typeof payload.isActive !== "boolean") {
-      throw new AppError("Field isActive is required.", 400);
+    if (
+      typeof payload.isActive !== "boolean" &&
+      typeof payload.isVerified !== "boolean"
+    ) {
+      throw new AppError(
+        "At least one of isActive or isVerified is required.",
+        400,
+      );
     }
 
     const user = await prisma.user.findUnique({
@@ -487,15 +493,25 @@ class UserController {
     const updatedUser = await prisma.user.update({
       where: { id: params.id },
       data: {
-        isActive: payload.isActive,
+        ...(typeof payload.isActive === "boolean"
+          ? {
+              isActive: payload.isActive,
+              ...(payload.isActive === false
+                ? { deactivatedAt: now }
+                : { deactivatedAt: null }),
+            }
+          : {}),
+        ...(typeof payload.isVerified === "boolean"
+          ? {
+              isVerified: payload.isVerified,
+              ...(payload.isVerified
+                ? { emailVerifiedAt: user.emailVerifiedAt ?? now }
+                : {}),
+            }
+          : {}),
         statusChangedAt: now,
         statusChangedById: req.user.userId,
         statusChangeReason: payload.reason ?? null,
-        ...(payload.isActive === false
-          ? { deactivatedAt: now }
-          : payload.isActive === true
-            ? { deactivatedAt: null }
-            : {}),
       },
     });
 
