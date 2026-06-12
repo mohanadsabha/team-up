@@ -21,6 +21,7 @@ import milestoneRoutes from "./modules/milestone/milestone.route";
 import chatRoutes from "./modules/chat/chat.route";
 import meetingRoutes from "./modules/meeting/meeting.route";
 import joinRequestRoutes from "./modules/join-request/join-request.route";
+import settingsRoutes from "./modules/admin/settings/settings.route";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -76,6 +77,7 @@ app.use("/api/v1/chats", chatRoutes);
 app.use("/api/v1/complaints", complaintRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/notification-settings", notificationSettingsRoutes);
+app.use("/api/v1/admin/settings", settingsRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 
 // Unhandled routes

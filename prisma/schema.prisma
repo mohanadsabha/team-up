@@ -614,3 +614,22 @@ model Complaint {
   @@index([status])
   @@index([createdAt])
 }
+
+//////////////////////
+// ADMIN & SYSTEM
+//////////////////////
+
+model PlatformSettings {
+  id                String   @id @default(uuid())
+  platformName      String   @default("TeamUp")
+  defaultLanguage   String   @default("en-US")
+  timezone          String   @default("UTC")
+  dateFormat        String   @default("YYYY-MM-DD")
+  logoUrl           String?
+  isLive            Boolean  @default(true)
+  maintenanceMode   Boolean  @default(false)
+  maintenanceMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
