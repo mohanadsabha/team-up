@@ -123,24 +123,13 @@ class TeamController {
           : {}),
       },
       include: {
-        members: isAdmin
-          ? {
-              take: 5,
+        _count: {
+          select: {
+            members: {
               where: { status: "APPROVED" },
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    username: true,
-                    firstName: true,
-                    lastName: true,
-                    role: true,
-                    profilePictureUrl: true,
-                  },
-                },
-              },
-            }
-          : { select: { id: true } },
+            },
+          },
+        },
         ...(isAdmin
           ? {
               mentor: {
@@ -153,49 +142,59 @@ class TeamController {
                   profilePictureUrl: true,
                 },
               },
+              members: {
+                take: 5,
+                where: { status: "APPROVED" },
+                orderBy: { joinedAt: "asc" },
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      username: true,
+                      firstName: true,
+                      lastName: true,
+                      role: true,
+                      profilePictureUrl: true,
+                    },
+                  },
+                },
+              },
             }
           : {}),
       },
       orderBy: { createdAt: "desc" },
     });
 
-    const teamResponses = teams.map((team) => {
-      const memberCount = isAdmin
-        ? team.members.length
-        : (team.members as { id: string }[]).length;
-
-      return {
-        id: team.id,
-        name: team.name,
-        description: team.description,
-        projectId: team.projectId,
-        mentorId: team.mentorId,
-        status: team.status,
-        previousStatus: team.previousStatus,
-        moderationState: team.moderationState,
-        maxMembers: team.maxMembers,
-        memberCount,
-        createdAt: team.createdAt,
-        updatedAt: team.updatedAt,
-        ...(isAdmin
-          ? {
-              mentor:
-                "mentor" in team
-                  ? (team.mentor as UserPreviewResponse | null)
-                  : null,
-              memberPreviews: Array.isArray(team.members)
-                ? team.members
-                    .map((member) =>
-                      "user" in member
-                        ? (member.user as UserPreviewResponse)
-                        : null,
-                    )
-                    .filter(Boolean)
-                : [],
-            }
-          : {}),
-      };
-    });
+    const teamResponses = teams.map((team) => ({
+      id: team.id,
+      name: team.name,
+      description: team.description,
+      projectId: team.projectId,
+      mentorId: team.mentorId,
+      status: team.status,
+      previousStatus: team.previousStatus ?? null,
+      moderationState: team.moderationState ?? null,
+      maxMembers: team.maxMembers,
+      memberCount: team._count.members,
+      createdAt: team.createdAt,
+      updatedAt: team.updatedAt,
+      ...(isAdmin
+        ? {
+            mentor: team.mentor ?? null,
+            memberPreviews: team.members
+              .map((member) => member.user)
+              .filter((user): user is NonNullable<typeof user> => Boolean(user))
+              .map((user) => ({
+                id: user.id,
+                username: user.username,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                role: user.role,
+                profilePictureUrl: user.profilePictureUrl,
+              })),
+          }
+        : {}),
+    }));
 
     res.status(200).json({
       success: true,
