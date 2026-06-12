@@ -230,8 +230,8 @@ class AuthController {
         isActive: false,
         isVerified: false,
         universityId: payload.universityId,
-        collegeId: payload.collegeId,
-        departmentId: payload.departmentId,
+        collegeId: payload.collegeId ?? null,
+        departmentId: payload.departmentId ?? null,
         academicProfile: {
           create: {
             major: payload.major,
@@ -865,30 +865,23 @@ class AuthController {
   }
 
   private async resolveSignupAffiliation(payload: {
-    departmentId: string;
-    collegeId: string;
+    departmentId?: string;
+    collegeId?: string;
     universityId: string;
     skills: string[];
   }) {
-    const department = await prisma.department.findUnique({
-      where: { id: payload.departmentId },
-      include: {
-        college: {
-          select: {
-            id: true,
-            universityId: true,
-          },
-        },
-      },
+    const university = await prisma.university.findUnique({
+      where: { id: payload.universityId },
+      select: { id: true, isActive: true },
     });
 
-    if (!department) {
+    if (!university || !university.isActive) {
       throw this.buildSignupFieldError(
         "Invalid signup affiliation.",
         [
           {
-            path: "departmentId",
-            message: "Department not found.",
+            path: "universityId",
+            message: "University not found or inactive.",
           },
         ],
         404,
@@ -896,40 +889,86 @@ class AuthController {
       );
     }
 
-    if (department.college.universityId !== payload.universityId) {
-      throw this.buildSignupFieldError(
-        "Invalid signup affiliation.",
-        [
-          {
-            path: "universityId",
-            message: "University does not match selected department.",
-          },
-          {
-            path: "departmentId",
-            message: "Department does not belong to selected university.",
-          },
-        ],
-        400,
-        "SIGNUP_AFFILIATION_MISMATCH",
-      );
-    }
+    if (payload.departmentId || payload.collegeId) {
+      if (!payload.departmentId || !payload.collegeId) {
+        throw this.buildSignupFieldError(
+          "Invalid signup affiliation.",
+          [
+            {
+              path: "collegeId",
+              message: "College and department must both be provided together.",
+            },
+            {
+              path: "departmentId",
+              message: "College and department must both be provided together.",
+            },
+          ],
+          400,
+          "SIGNUP_AFFILIATION_MISMATCH",
+        );
+      }
 
-    if (department.college.id !== payload.collegeId) {
-      throw this.buildSignupFieldError(
-        "Invalid signup affiliation.",
-        [
-          {
-            path: "collegeId",
-            message: "College does not match selected department.",
+      const department = await prisma.department.findUnique({
+        where: { id: payload.departmentId },
+        include: {
+          college: {
+            select: {
+              id: true,
+              universityId: true,
+            },
           },
-          {
-            path: "departmentId",
-            message: "Department does not belong to selected college.",
-          },
-        ],
-        400,
-        "SIGNUP_AFFILIATION_MISMATCH",
-      );
+        },
+      });
+
+      if (!department) {
+        throw this.buildSignupFieldError(
+          "Invalid signup affiliation.",
+          [
+            {
+              path: "departmentId",
+              message: "Department not found.",
+            },
+          ],
+          404,
+          "SIGNUP_AFFILIATION_INVALID",
+        );
+      }
+
+      if (department.college.universityId !== payload.universityId) {
+        throw this.buildSignupFieldError(
+          "Invalid signup affiliation.",
+          [
+            {
+              path: "universityId",
+              message: "University does not match selected department.",
+            },
+            {
+              path: "departmentId",
+              message: "Department does not belong to selected university.",
+            },
+          ],
+          400,
+          "SIGNUP_AFFILIATION_MISMATCH",
+        );
+      }
+
+      if (department.college.id !== payload.collegeId) {
+        throw this.buildSignupFieldError(
+          "Invalid signup affiliation.",
+          [
+            {
+              path: "collegeId",
+              message: "College does not match selected department.",
+            },
+            {
+              path: "departmentId",
+              message: "Department does not belong to selected college.",
+            },
+          ],
+          400,
+          "SIGNUP_AFFILIATION_MISMATCH",
+        );
+      }
     }
 
     const normalizedSkills = Array.from(

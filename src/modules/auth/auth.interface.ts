@@ -17,9 +17,9 @@ export const signUpSchema = z.object({
   firstName: z.string().trim().min(2).max(50),
   lastName: z.string().trim().min(2).max(50),
   universityId: z.string().trim().uuid(),
-  collegeId: z.string().trim().uuid(),
-  departmentId: z.string().trim().uuid(),
-  major: z.string().trim().min(2).max(120).optional(),
+  collegeId: z.string().trim().uuid().optional(),
+  departmentId: z.string().trim().uuid().optional(),
+  major: z.string().trim().min(2).max(120),
   skills: z.array(z.string().trim().min(2).max(50)).min(1).max(20),
   role: userRoleSchema.default("STUDENT"),
 }) satisfies ZodType;

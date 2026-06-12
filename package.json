@@ -9,7 +9,11 @@
     "type-check": "tsc --noEmit",
     "clean": "rimraf dist",
     "copy-files": "copyfiles -u 1 src/**/*.pug src/**/*.json dist/",
-    "format": "prettier --write src/**/*.ts"
+    "format": "prettier --write src/**/*.ts",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "author": "",
   "license": "ISC",

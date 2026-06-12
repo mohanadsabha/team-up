@@ -35,6 +35,7 @@ export type AcademicProfileSummary = {
 
 export const updateUserStatusSchema = z.object({
   isActive: z.boolean().optional(),
+  isVerified: z.boolean().optional(),
   reason: z.string().trim().max(255).optional(),
 }) satisfies ZodType;
 

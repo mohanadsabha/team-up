@@ -52,6 +52,12 @@ export const getTeamsQuerySchema = z.object({
   departmentId: z.string().trim().uuid().optional(),
 }) satisfies ZodType;
 
+export const rejectTeamSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+}) satisfies ZodType;
+
+export type RejectTeam = z.infer<typeof rejectTeamSchema>;
+
 export const getTeamMembersQuerySchema = z.object({
   role: z.enum(["TEAM_ADMIN", "MEMBER", "MENTOR"]).optional(),
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
@@ -76,10 +82,14 @@ export type TeamResponse = {
   projectId: string | null;
   mentorId: string | null;
   status: string;
+  previousStatus?: string | null;
+  moderationState?: string | null;
   maxMembers: number;
   memberCount: number;
   createdAt: Date;
   updatedAt: Date;
+  mentor?: UserPreviewResponse | null;
+  memberPreviews?: UserPreviewResponse[];
 };
 
 export type TeamMemberResponse = {

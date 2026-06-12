@@ -1,12 +1,17 @@
 import { Router } from "express";
 import { teamController } from "./team.controller";
-import { protect, restrictTo } from "../../middleware/auth.middleware";
+import {
+  optionalAuth,
+  protect,
+  restrictTo,
+} from "../../middleware/auth.middleware";
 
 const router = Router();
 
 /**
  * PUBLIC ENDPOINTS - Read-only access to team information
  */
+router.use(optionalAuth);
 router.get("/", teamController.getTeams);
 router.get("/:id", teamController.getTeamById);
 
@@ -26,5 +31,11 @@ router.delete("/:id", teamController.deleteTeam);
 router.post("/:id/members", teamController.addTeamMember);
 router.patch("/:teamId/members/:memberId", teamController.updateTeamMember);
 router.delete("/:teamId/members/:memberId", teamController.removeTeamMember);
+
+router.use(restrictTo("SYSTEM_ADMIN"));
+router.post("/:id/approve", teamController.approveTeam);
+router.post("/:id/reject", teamController.rejectTeam);
+router.post("/:id/disable", teamController.disableTeam);
+router.post("/:id/enable", teamController.enableTeam);
 
 export default router;
