@@ -12,8 +12,20 @@ export const updateSystemSettingsSchema = z.object({
   maintenanceMessage: z.string().trim().max(500).optional().nullable(),
 }) satisfies ZodType;
 
+export const updateApprovalSettingsSchema = z.object({
+  requireUserApproval: z.boolean().optional(),
+  autoActivateUsers: z.boolean().optional(),
+  allowPaidIdeas: z.boolean().optional(),
+  requireIdeaApproval: z.boolean().optional(),
+  requireTeamApproval: z.boolean().optional(),
+}) satisfies ZodType;
+
 export type UpdateSystemSettingsRequest = z.infer<
   typeof updateSystemSettingsSchema
+>;
+
+export type UpdateApprovalSettingsRequest = z.infer<
+  typeof updateApprovalSettingsSchema
 >;
 
 export interface PlatformSettingsResponse {
@@ -30,8 +42,25 @@ export interface PlatformSettingsResponse {
   updatedAt: string;
 }
 
+export interface ApprovalSettingsResponse {
+  id: string;
+  requireUserApproval: boolean;
+  autoActivateUsers: boolean;
+  allowPaidIdeas: boolean;
+  requireIdeaApproval: boolean;
+  requireTeamApproval: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SettingsMessageResponse {
   success: boolean;
   message: string;
   data?: PlatformSettingsResponse;
+}
+
+export interface ApprovalSettingsMessageResponse {
+  success: boolean;
+  message: string;
+  data?: ApprovalSettingsResponse;
 }

@@ -306,6 +306,7 @@ class TeamController {
     if (payload.departmentId && payload.departmentId !== creator.departmentId) {
       throw new AppError("Team department must match your department.", 400);
     }
+    const settings = await prisma.platformSettings.findFirst();
 
     const team = await prisma.$transaction(async (tx) => {
       const createdTeam = await tx.team.create({
@@ -314,7 +315,7 @@ class TeamController {
           description: payload.description,
           projectId: payload.projectId,
           maxMembers: payload.maxMembers ?? 5,
-          status: "DRAFT",
+          status: settings.requireTeamApproval ? "DRAFT" : "PUBLISHED",
           // Team is implicitly linked to creator's uni/college/department via membership
         },
       });

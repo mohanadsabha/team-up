@@ -55,7 +55,7 @@ export type AuthUser = {
 export type AuthTokenResponse = {
   success: boolean;
   message: string;
-  token: string;
+  token?: string;
   verificationToken?: string;
   user: AuthUser;
 };

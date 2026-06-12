@@ -25,4 +25,13 @@ router.post("/system/logo", upload.single("logo"), (req, res, next) =>
   settingsController.uploadLogo(req, res, next),
 );
 
+// Approval settings routes
+router.get("/approval", (req, res, next) =>
+  settingsController.getApprovalSettings(req, res, next),
+);
+
+router.patch("/approval", (req, res, next) =>
+  settingsController.updateApprovalSettings(req, res, next),
+);
+
 export default router;

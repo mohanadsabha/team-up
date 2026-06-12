@@ -218,60 +218,123 @@ class AuthController {
     const passwordHash = await hash(payload.password, 12);
     const now = new Date();
 
-    const user = await prisma.user.create({
-      data: {
-        username: payload.username,
-        email: payload.email,
-        passwordHash,
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        role: payload.role,
-        registrationMethod: "EMAIL",
-        isActive: false,
-        isVerified: false,
-        universityId: payload.universityId,
-        collegeId: payload.collegeId ?? null,
-        departmentId: payload.departmentId ?? null,
-        academicProfile: {
-          create: {
-            major: payload.major,
-            skills: normalizedSkills,
+    // check platform settings
+    const settings = await prisma.platformSettings.findFirst();
+    if (settings.autoActivateUsers && !settings.requireUserApproval) {
+      const user = await prisma.user.create({
+        data: {
+          username: payload.username,
+          email: payload.email,
+          passwordHash,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          role: payload.role,
+          registrationMethod: "EMAIL",
+          isActive: true,
+          isVerified: true,
+          universityId: payload.universityId,
+          collegeId: payload.collegeId ?? null,
+          departmentId: payload.departmentId ?? null,
+          academicProfile: {
+            create: {
+              major: payload.major,
+              skills: normalizedSkills,
+            },
           },
+          lastLogin: now,
         },
-        lastLogin: now,
-      },
-    });
+      });
+      const token = signJWT({ userId: user.id, role: user.role });
+      res.status(201).json({
+        success: true,
+        message: "Account created successfully and activated",
+        token,
+        user: this.sanitizeUser(user),
+      });
+    } else if (settings.requireUserApproval) {
+      const user = await prisma.user.create({
+        data: {
+          username: payload.username,
+          email: payload.email,
+          passwordHash,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          role: payload.role,
+          registrationMethod: "EMAIL",
+          isActive: false,
+          isVerified: true,
+          universityId: payload.universityId,
+          collegeId: payload.collegeId ?? null,
+          departmentId: payload.departmentId ?? null,
+          academicProfile: {
+            create: {
+              major: payload.major,
+              skills: normalizedSkills,
+            },
+          },
+          lastLogin: now,
+        },
+      });
+      const token = signJWT({ userId: user.id, role: user.role });
+      res.status(201).json({
+        success: true,
+        message: "Account created successfully, wait for admin activiation",
+        token,
+        user: this.sanitizeUser(user),
+      });
+    } else {
+      const user = await prisma.user.create({
+        data: {
+          username: payload.username,
+          email: payload.email,
+          passwordHash,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          role: payload.role,
+          registrationMethod: "EMAIL",
+          isActive: false,
+          isVerified: false,
+          universityId: payload.universityId,
+          collegeId: payload.collegeId ?? null,
+          departmentId: payload.departmentId ?? null,
+          academicProfile: {
+            create: {
+              major: payload.major,
+              skills: normalizedSkills,
+            },
+          },
+          lastLogin: now,
+        },
+      });
 
-    const verificationToken = sign(
-      {
-        userId: user.id,
-        email: user.email,
-        purpose: "verify-email",
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "1d" as StringValue,
-      },
-    );
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+      const verificationToken = sign(
+        {
+          userId: user.id,
+          email: user.email,
+          purpose: "verify-email",
+        },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "1d" as StringValue,
+        },
+      );
+      const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
-    await emailService.sendEmailVerification({
-      to: user.email,
-      name: user.firstName,
-      verificationUrl,
-    });
+      await emailService.sendEmailVerification({
+        to: user.email,
+        name: user.firstName,
+        verificationUrl,
+      });
 
-    const token = signJWT({ userId: user.id, role: user.role });
-
-    res.status(201).json({
-      success: true,
-      message:
-        "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in.",
-      token,
-      //FIXME
-      verificationToken,
-      user: this.sanitizeUser(user),
-    });
+      res.status(201).json({
+        success: true,
+        message:
+          "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in.",
+        //FIXME
+        verificationToken,
+        user: this.sanitizeUser(user),
+      });
+    }
   };
 
   public login = async (
@@ -342,22 +405,41 @@ class AuthController {
     if (!user || user.email !== decodedToken.email) {
       throw new AppError("Invalid verification token.", 401);
     }
+    const settings = await prisma.platformSettings.findFirst();
 
-    if (!user.isVerified || !user.isActive || !user.emailVerifiedAt) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          isVerified: true,
-          isActive: true,
-          emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
-        },
+    if (settings.requireUserApproval) {
+      if (!user.isVerified || !user.emailVerifiedAt) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isVerified: true,
+            emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+          },
+        });
+      }
+      res.status(200).json({
+        success: true,
+        message:
+          "Email verified successfully. Wait for admin approval to login",
+      });
+    } else {
+      if (!user.isVerified || !user.isActive || !user.emailVerifiedAt) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isVerified: true,
+            isActive: true,
+            emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+          },
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message:
+          "Email verified successfully. Your account is now active and you can log in.",
       });
     }
-
-    res.status(200).json({
-      success: true,
-      message: "Email verified successfully. Your account is now active and you can log in.",
-    });
   };
 
   public google = async (req: Request, res: Response, _next: NextFunction) => {

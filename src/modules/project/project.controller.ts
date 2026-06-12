@@ -452,6 +452,12 @@ class ProjectController {
     }
 
     if (req.user.role !== "SYSTEM_ADMIN") {
+      const settings = await prisma.platformSettings.findFirst();
+      if (!settings.allowPaidIdeas) {
+        if (payload.ideaType === "PAID") {
+          throw new AppError("Paid ideas are currently stopped.", 400);
+        }
+      }
       if (
         payload.universityId &&
         payload.universityId !== creator.universityId
@@ -564,6 +570,13 @@ class ProjectController {
     // If changing to FREE and no price was provided, default price to 0 to keep consistency
     if (p.ideaType === "FREE" && p.price === undefined) {
       p.price = 0;
+    }
+    //if changing to paid check system settings
+    const settings = await prisma.platformSettings.findFirst();
+    if (!settings.allowPaidIdeas) {
+      if (p.ideaType === "PAID") {
+        throw new AppError("Paid ideas are currently stopped.", 400);
+      }
     }
 
     await this.canManageProject(params.id, req.user.userId, req.user.role);
@@ -708,12 +721,14 @@ class ProjectController {
 
     await this.canManageProject(params.id, req.user.userId, req.user.role);
 
+    const settings = await prisma.platformSettings.findFirst();
+
     const project = await prisma.graduationProject.update({
       where: { id: params.id },
       data: {
-        status: "SUBMITTED",
-        isPublished: false,
-        isApproved: false,
+        status: settings.requireIdeaApproval ? "SUBMITTED" : "PUBLISHED",
+        isPublished: settings.requireIdeaApproval ? false : true,
+        isApproved: settings.requireIdeaApproval ? false : true,
       },
       include: {
         createdBy: {

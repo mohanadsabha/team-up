@@ -2,9 +2,13 @@ import { Request, Response, NextFunction } from "express";
 import { zodValidation } from "../../../utils/zod.util";
 import {
   UpdateSystemSettingsRequest,
+  UpdateApprovalSettingsRequest,
   updateSystemSettingsSchema,
+  updateApprovalSettingsSchema,
   PlatformSettingsResponse,
+  ApprovalSettingsResponse,
   SettingsMessageResponse,
+  ApprovalSettingsMessageResponse,
   StringObject,
 } from "./settings.interface";
 import AppError from "../../../utils/appError";
@@ -115,6 +119,72 @@ class SettingsController {
     });
   };
 
+  public getApprovalSettings = async (
+    req: Request,
+    res: Response<ApprovalSettingsMessageResponse>,
+    _next: NextFunction,
+  ) => {
+    let settings = await prisma.platformSettings.findFirst();
+
+    // Create default settings if none exist
+    if (!settings) {
+      settings = await prisma.platformSettings.create({
+        data: {},
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Approval settings retrieved successfully.",
+      data: this.formatApprovalSettings(settings),
+    });
+  };
+
+  public updateApprovalSettings = async (
+    req: Request<StringObject, StringObject, UpdateApprovalSettingsRequest>,
+    res: Response<ApprovalSettingsMessageResponse>,
+    _next: NextFunction,
+  ) => {
+    const validatedData = zodValidation(updateApprovalSettingsSchema, req.body);
+
+    let settings = await prisma.platformSettings.findFirst();
+
+    // Create default settings if none exist
+    if (!settings) {
+      settings = await prisma.platformSettings.create({
+        data: validatedData,
+      });
+    } else {
+      // Update existing settings
+      settings = await prisma.platformSettings.update({
+        where: { id: settings.id },
+        data: {
+          ...(validatedData.requireUserApproval !== undefined && {
+            requireUserApproval: validatedData.requireUserApproval,
+          }),
+          ...(validatedData.autoActivateUsers !== undefined && {
+            autoActivateUsers: validatedData.autoActivateUsers,
+          }),
+          ...(validatedData.allowPaidIdeas !== undefined && {
+            allowPaidIdeas: validatedData.allowPaidIdeas,
+          }),
+          ...(validatedData.requireIdeaApproval !== undefined && {
+            requireIdeaApproval: validatedData.requireIdeaApproval,
+          }),
+          ...(validatedData.requireTeamApproval !== undefined && {
+            requireTeamApproval: validatedData.requireTeamApproval,
+          }),
+        },
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Approval settings updated successfully.",
+      data: this.formatApprovalSettings(settings),
+    });
+  };
+
   private formatSettings(settings: any): PlatformSettingsResponse {
     return {
       id: settings.id,
@@ -126,6 +196,19 @@ class SettingsController {
       isLive: settings.isLive,
       maintenanceMode: settings.maintenanceMode,
       maintenanceMessage: settings.maintenanceMessage,
+      createdAt: settings.createdAt.toISOString(),
+      updatedAt: settings.updatedAt.toISOString(),
+    };
+  }
+
+  private formatApprovalSettings(settings: any): ApprovalSettingsResponse {
+    return {
+      id: settings.id,
+      requireUserApproval: settings.requireUserApproval,
+      autoActivateUsers: settings.autoActivateUsers,
+      allowPaidIdeas: settings.allowPaidIdeas,
+      requireIdeaApproval: settings.requireIdeaApproval,
+      requireTeamApproval: settings.requireTeamApproval,
       createdAt: settings.createdAt.toISOString(),
       updatedAt: settings.updatedAt.toISOString(),
     };

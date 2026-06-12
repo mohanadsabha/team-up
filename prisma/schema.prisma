@@ -630,6 +630,13 @@ model PlatformSettings {
   maintenanceMode   Boolean  @default(false)
   maintenanceMessage String?
 
+  // User & Approval Settings
+  requireUserApproval    Boolean @default(false)
+  autoActivateUsers      Boolean @default(false)
+  allowPaidIdeas         Boolean @default(true)
+  requireIdeaApproval    Boolean @default(true)
+  requireTeamApproval    Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
