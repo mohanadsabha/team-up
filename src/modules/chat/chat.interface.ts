@@ -16,8 +16,9 @@ export const messageParamSchema = z.object({
 export type MessageParam = z.infer<typeof messageParamSchema>;
 
 export const createChatSchema = z.object({
-  teamId: z.string().trim().uuid(),
-  type: z.enum(["TEAM", "DIRECT"]).default("TEAM"),
+  teamId: z.string().trim().uuid().optional(),
+  joinRequestId: z.string().trim().uuid().optional(),
+  type: z.enum(["TEAM", "JOIN_REQUEST"]).default("TEAM"),
 }) satisfies ZodType;
 
 export const sendMessageSchema = z.object({
@@ -78,6 +79,7 @@ export type ChatResponse = {
   id: string;
   teamId: string;
   type: string;
+  joinRequestId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };

@@ -19,8 +19,11 @@ router.patch(
 router.get("/:id/activity", userController.getUserActivity);
 router.get("/:id", userController.getUserById);
 
-router.use(restrictTo("SYSTEM_ADMIN"));
 router.get("/", userController.getUsers);
-router.patch("/:id/status", userController.updateUserStatus);
+router.patch(
+  "/:id/status",
+  restrictTo("SYSTEM_ADMIN"),
+  userController.updateUserStatus,
+);
 
 export default router;

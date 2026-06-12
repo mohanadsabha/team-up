@@ -108,9 +108,14 @@ export function startMeetingReminderScheduler(intervalMs = 60 * 1000) {
 }
 
 export function bootstrapMeetingReminders(): MeetingReminderRuntime {
-  if (!isWorkerEnabled()) {
+  const runApi = isApiEnabled();
+
+  // Start the scheduler when running as a worker OR when running the API
+  // so that reminders are sent automatically without requiring the manual
+  // dispatch endpoint.
+  if (!isWorkerEnabled() && !runApi) {
     return {
-      runApi: isApiEnabled(),
+      runApi,
       stop: () => undefined,
     };
   }
@@ -120,7 +125,7 @@ export function bootstrapMeetingReminders(): MeetingReminderRuntime {
   console.log(`Meeting reminders enabled every ${intervalMs}ms.`);
 
   return {
-    runApi: isApiEnabled(),
+    runApi,
     stop: stopMeetingReminderScheduler,
   };
 }

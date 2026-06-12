@@ -113,38 +113,49 @@ class JoinRequestController {
     if (query.teamId) where.teamId = query.teamId;
     if (query.status) where.status = query.status;
 
-    // Non-system admins can only view requests for teams where they are team admins.
-    if (req.user.role !== "SYSTEM_ADMIN") {
-      if (query.teamId) {
-        const admin = await prisma.teamMember.findFirst({
-          where: {
-            teamId: query.teamId,
-            userId: req.user.userId,
-            role: "TEAM_ADMIN",
-          },
-          select: { id: true },
-        });
+    if (query.userId) {
+      if (
+        req.user.role !== "SYSTEM_ADMIN" &&
+        query.userId !== req.user.userId
+      ) {
+        throw new AppError("You can only view your own join requests.", 403);
+      }
 
-        if (!admin) {
-          throw new AppError(
-            "Not authorized to view requests for this team.",
-            403,
-          );
+      where.userId = query.userId;
+    } else {
+      // Non-system admins can only view requests for teams where they are team admins.
+      if (req.user.role !== "SYSTEM_ADMIN") {
+        if (query.teamId) {
+          const admin = await prisma.teamMember.findFirst({
+            where: {
+              teamId: query.teamId,
+              userId: req.user.userId,
+              role: "TEAM_ADMIN",
+            },
+            select: { id: true },
+          });
+
+          if (!admin) {
+            throw new AppError(
+              "Not authorized to view requests for this team.",
+              403,
+            );
+          }
+        } else {
+          const managedTeams = await prisma.teamMember.findMany({
+            where: {
+              userId: req.user.userId,
+              role: "TEAM_ADMIN",
+              status: "APPROVED",
+            },
+            select: { teamId: true },
+          });
+
+          const managedTeamIds = managedTeams.map((item) => item.teamId);
+          where.teamId = {
+            in: managedTeamIds.length ? managedTeamIds : [""],
+          };
         }
-      } else {
-        const managedTeams = await prisma.teamMember.findMany({
-          where: {
-            userId: req.user.userId,
-            role: "TEAM_ADMIN",
-            status: "APPROVED",
-          },
-          select: { teamId: true },
-        });
-
-        const managedTeamIds = managedTeams.map((item) => item.teamId);
-        where.teamId = {
-          in: managedTeamIds.length ? managedTeamIds : [""],
-        };
       }
     }
 

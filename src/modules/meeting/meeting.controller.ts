@@ -18,7 +18,7 @@ import {
   StringObject,
 } from "./meeting.interface";
 import { notificationController } from "../notification/notification.controller";
-import { processMeetingReminders } from "./meeting-reminder.job";
+// Reminder processing is handled by the scheduler in `meeting-reminder.job`.
 
 class MeetingController {
   private async assertTeamAccess(teamId: string, userId: string, role: string) {
@@ -269,7 +269,10 @@ class MeetingController {
       req.user.role,
     );
 
-    if (payload.startAt && payload.endAt && payload.endAt <= payload.startAt) {
+    const newStart = payload.startAt ?? meeting.startAt;
+    const newEnd = payload.endAt ?? meeting.endAt;
+
+    if (newEnd <= newStart) {
       throw new AppError("Meeting end time must be after the start time.", 400);
     }
 
@@ -325,21 +328,6 @@ class MeetingController {
     res.status(200).json({
       success: true,
       message: "Meeting deleted successfully.",
-    });
-  };
-
-  public sendDueReminders = async (
-    req: Request,
-    res: Response<MessageResponse & { sent: number }>,
-    _next: NextFunction,
-  ) => {
-    // This endpoint is a manual sweep hook for cron/worker integration.
-    const sent = await processMeetingReminders();
-
-    res.status(200).json({
-      success: true,
-      message: "Due meeting reminders processed.",
-      sent,
     });
   };
 }
