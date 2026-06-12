@@ -231,13 +231,21 @@ class MeetingController {
 
     for (const member of members) {
       if (member.userId === req.user.userId) continue;
-      await notificationController.createNotification({
-        userId: member.userId,
-        type: "MEETING_REMINDER",
-        title: "Meeting Scheduled",
-        content: `A new meeting has been scheduled for team ${team.id}: ${payload.title}.`,
-        relatedEntityId: meeting.id,
+      const meetingNotify = await prisma.notificationUserSetting.findUnique({
+        where: { userId: member.userId },
+        select: {
+          meetingReminders: true,
+        },
       });
+      if (meetingNotify.meetingReminders) {
+        await notificationController.createNotification({
+          userId: member.userId,
+          type: "MEETING_REMINDER",
+          title: "Meeting Scheduled",
+          content: `A new meeting has been scheduled for team ${team.id}: ${payload.title}.`,
+          relatedEntityId: meeting.id,
+        });
+      }
     }
 
     res.status(201).json({

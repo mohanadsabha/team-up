@@ -202,13 +202,19 @@ class TaskController {
     });
 
     if (task.assignedTo) {
-      await notificationController.createNotification({
-        userId: task.assignedTo,
-        type: "TASK_ASSIGNED",
-        title: "New Task Assigned",
-        content: `You were assigned task "${task.title}".`,
-        relatedEntityId: task.id,
+      const taskNotification = await prisma.notificationUserSetting.findFirst({
+        where: { userId: task.assignedTo },
+        select: { taskStatus: true },
       });
+      if (taskNotification.taskStatus) {
+        await notificationController.createNotification({
+          userId: task.assignedTo,
+          type: "TASK_ASSIGNED",
+          title: "New Task Assigned",
+          content: `You were assigned task "${task.title}".`,
+          relatedEntityId: task.id,
+        });
+      }
     }
 
     res.status(201).json({
@@ -326,26 +332,38 @@ class TaskController {
       },
     });
     if (updatedTask.assignedTo && isReassigned) {
-      await notificationController.createNotification({
-        userId: updatedTask.assignedTo,
-        type: "TASK_ASSIGNED",
-        title: "Task Assignment Updated",
-        content: `You were assigned task "${updatedTask.title}".`,
-        relatedEntityId: updatedTask.id,
+      const taskNotification = await prisma.notificationUserSetting.findFirst({
+        where: { userId: updatedTask.assignedTo },
+        select: { taskStatus: true },
       });
+      if (taskNotification.taskStatus) {
+        await notificationController.createNotification({
+          userId: updatedTask.assignedTo,
+          type: "TASK_ASSIGNED",
+          title: "Task Assignment Updated",
+          content: `You were assigned task "${updatedTask.title}".`,
+          relatedEntityId: updatedTask.id,
+        });
+      }
     }
     if (
       updatedTask.assignedTo &&
       !isReassigned &&
       req.user.userId !== updatedTask.assignedTo
     ) {
-      await notificationController.createNotification({
-        userId: updatedTask.assignedTo,
-        type: "TASK_UPDATED",
-        title: "Task Updated",
-        content: `Task "${updatedTask.title}" was updated.`,
-        relatedEntityId: updatedTask.id,
+      const taskNotification = await prisma.notificationUserSetting.findFirst({
+        where: { userId: updatedTask.assignedTo },
+        select: { taskStatus: true },
       });
+      if (taskNotification.taskStatus) {
+        await notificationController.createNotification({
+          userId: updatedTask.assignedTo,
+          type: "TASK_UPDATED",
+          title: "Task Updated",
+          content: `Task "${updatedTask.title}" was updated.`,
+          relatedEntityId: updatedTask.id,
+        });
+      }
     }
 
     res.status(200).json({

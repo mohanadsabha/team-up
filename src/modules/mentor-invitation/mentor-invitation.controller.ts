@@ -48,7 +48,12 @@ class MentorInvitationController {
     // Verify mentor exists and has MENTOR role
     const mentor = await prisma.user.findUnique({
       where: { id: payload.mentorId },
-      select: { id: true, role: true, deletedAt: true },
+      select: {
+        id: true,
+        role: true,
+        deletedAt: true,
+        notificationSettings: { select: { mentorInvitationStatus: true } },
+      },
     });
 
     if (
@@ -74,13 +79,15 @@ class MentorInvitationController {
     });
 
     // Send notification to mentor
-    await notificationController.createNotification({
-      userId: payload.mentorId,
-      type: "MENTOR_INVITATION_SENT",
-      title: `Mentorship Invitation from ${team.name}`,
-      content: `You have been invited to mentor the team "${team.name}". Accept or reject this invitation.`,
-      relatedEntityId: params.teamId,
-    });
+    if (mentor.notificationSettings.mentorInvitationStatus) {
+      await notificationController.createNotification({
+        userId: payload.mentorId,
+        type: "MENTOR_INVITATION_SENT",
+        title: `Mentorship Invitation from ${team.name}`,
+        content: `You have been invited to mentor the team "${team.name}". Accept or reject this invitation.`,
+        relatedEntityId: params.teamId,
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -208,13 +215,19 @@ class MentorInvitationController {
     });
 
     if (teamCreator) {
-      await notificationController.createNotification({
-        userId: teamCreator.userId,
-        type: "MENTOR_INVITATION_ACCEPTED",
-        title: `Mentor Accepted Mentorship`,
-        content: `Your mentor invitation for team "${team.name}" has been accepted.`,
-        relatedEntityId: params.teamId,
+      const mentorNotiication = await prisma.notificationUserSetting.findFirst({
+        where: { userId: teamCreator.userId },
+        select: { mentorInvitationStatus: true },
       });
+      if (mentorNotiication.mentorInvitationStatus) {
+        await notificationController.createNotification({
+          userId: teamCreator.userId,
+          type: "MENTOR_INVITATION_ACCEPTED",
+          title: `Mentor Accepted Mentorship`,
+          content: `Your mentor invitation for team "${team.name}" has been accepted.`,
+          relatedEntityId: params.teamId,
+        });
+      }
     }
 
     res.status(200).json({
@@ -275,13 +288,19 @@ class MentorInvitationController {
     });
 
     if (teamCreator) {
-      await notificationController.createNotification({
-        userId: teamCreator.userId,
-        type: "MENTOR_INVITATION_REJECTED",
-        title: `Mentor Rejected Mentorship`,
-        content: `${mentorName} has rejected the mentorship invitation for team "${team.name}".`,
-        relatedEntityId: params.teamId,
+      const mentorNotiication = await prisma.notificationUserSetting.findFirst({
+        where: { userId: teamCreator.userId },
+        select: { mentorInvitationStatus: true },
       });
+      if (mentorNotiication.mentorInvitationStatus) {
+        await notificationController.createNotification({
+          userId: teamCreator.userId,
+          type: "MENTOR_INVITATION_REJECTED",
+          title: `Mentor Rejected Mentorship`,
+          content: `${mentorName} has rejected the mentorship invitation for team "${team.name}".`,
+          relatedEntityId: params.teamId,
+        });
+      }
     }
 
     res.status(200).json({

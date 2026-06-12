@@ -209,6 +209,7 @@ model User {
 
   // Notifications & Transactions
   notifications     Notification[]
+  notificationSettings NotificationUserSetting?
   purchasedProjects Payment[]
   savedProjects     ProjectSave[]
 
@@ -547,6 +548,25 @@ model Notification {
   @@index([userId])
   @@index([isRead])
   @@index([createdAt])
+}
+
+model NotificationUserSetting {
+  id                         String   @id @default(uuid())
+  userId                     String   @unique
+  joinRequestStatus          Boolean  @default(true)
+  milestoneStatus            Boolean  @default(true)
+  mentorInvitationStatus     Boolean  @default(true)
+  meetingReminders           Boolean  @default(true)
+  projectApprovedRejected    Boolean  @default(true)
+  taskDeadlineReminders      Boolean  @default(true)
+  taskStatus                 Boolean  @default(true)
+  teamStatusChanges          Boolean  @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Payment {

@@ -69,15 +69,20 @@ export async function processTaskDueReminders(now = new Date()) {
         continue;
       }
 
-      await notificationController.createNotification({
-        userId: task.assignedTo,
-        type: "TASK_DUE_SOON",
-        title: reminderTitle,
-        content: `Task "${task.title}" is due at ${task.dueDate?.toISOString()}.`,
-        relatedEntityId: task.id,
+      const taskNotification = await prisma.notificationUserSetting.findFirst({
+        where: { userId: task.assignedTo },
+        select: { taskDeadlineReminders: true },
       });
-
-      sent += 1;
+      if (taskNotification.taskDeadlineReminders) {
+        await notificationController.createNotification({
+          userId: task.assignedTo,
+          type: "TASK_DUE_SOON",
+          title: reminderTitle,
+          content: `Task "${task.title}" is due at ${task.dueDate?.toISOString()}.`,
+          relatedEntityId: task.id,
+        });
+        sent += 1;
+      }
     }
   }
 

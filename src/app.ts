@@ -12,6 +12,7 @@ import institutionRoutes from "./modules/institution/institution.route";
 import teamRoutes from "./modules/team/team.route";
 import taskRoutes from "./modules/task/task.route";
 import notificationRoutes from "./modules/notification/notification.route";
+import notificationSettingsRoutes from "./modules/notification-settings/notification-settings.route";
 import paymentRoutes from "./modules/payment/payment.route";
 import complaintRoutes from "./modules/complaint/complaint.route";
 import projectRoutes from "./modules/project/project.route";
@@ -74,6 +75,7 @@ app.use("/api/v1/meetings", meetingRoutes);
 app.use("/api/v1/chats", chatRoutes);
 app.use("/api/v1/complaints", complaintRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/notification-settings", notificationSettingsRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 
 // Unhandled routes

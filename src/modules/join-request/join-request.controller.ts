@@ -75,6 +75,11 @@ class JoinRequestController {
         teamId: payload.teamId,
         role: "TEAM_ADMIN",
         status: "APPROVED",
+        user: {
+          notificationSettings: {
+            joinRequestStatus: true,
+          },
+        },
       },
       select: { userId: true },
     });
@@ -219,7 +224,14 @@ class JoinRequestController {
       // Prevent accepting users who have 3+ removal strikes
       const targetUser = await prisma.user.findUnique({
         where: { id: request.userId },
-        select: { removalStrikes: true },
+        select: {
+          removalStrikes: true,
+          notificationSettings: {
+            select: {
+              joinRequestStatus: true,
+            },
+          },
+        },
       });
       if (targetUser?.removalStrikes && targetUser.removalStrikes >= 3) {
         throw new AppError("User is blocked from joining teams.", 403);
@@ -244,32 +256,43 @@ class JoinRequestController {
         data: { status: "APPROVED", respondedAt: new Date() },
       });
 
-      await notificationController.createNotification({
-        userId: request.userId,
-        type: "JOIN_REQUEST_ACCEPTED",
-        title: "Join Request Approved",
-        content: `Your request to join team ${team.name} was approved.`,
-        relatedEntityId: team.id,
-      });
+      if (targetUser.notificationSettings.joinRequestStatus) {
+        await notificationController.createNotification({
+          userId: request.userId,
+          type: "JOIN_REQUEST_ACCEPTED",
+          title: "Join Request Approved",
+          content: `Your request to join team ${team.name} was approved.`,
+          relatedEntityId: team.id,
+        });
+      }
 
       res.status(200).json({ success: true, message: "Request accepted." });
       return;
     }
+
+    const joinNotify = await prisma.notificationUserSetting.findUnique({
+      where: { userId: request.userId },
+      select: {
+        joinRequestStatus: true,
+      },
+    });
 
     // reject
     await prisma.joinRequest.update({
       where: { id: params.id },
       data: { status: "REJECTED", respondedAt: new Date() },
     });
-    await notificationController.createNotification({
-      userId: request.userId,
-      type: "JOIN_REQUEST_REJECTED",
-      title: "Join Request Rejected",
-      content:
-        payload.feedback ||
-        `Your request to join team ${team.name} was rejected.`,
-      relatedEntityId: team.id,
-    });
+    if (joinNotify.joinRequestStatus) {
+      await notificationController.createNotification({
+        userId: request.userId,
+        type: "JOIN_REQUEST_REJECTED",
+        title: "Join Request Rejected",
+        content:
+          payload.feedback ||
+          `Your request to join team ${team.name} was rejected.`,
+        relatedEntityId: team.id,
+      });
+    }
 
     res.status(200).json({ success: true, message: "Request rejected." });
   };

@@ -376,9 +376,7 @@ class ProjectController {
     const isAdmin = req.user?.role === "SYSTEM_ADMIN";
 
     const project = await prisma.graduationProject.findFirst({
-      where: isAdmin
-        ? { id: params.id }
-        : { id: params.id, isPublished: true },
+      where: isAdmin ? { id: params.id } : { id: params.id, isPublished: true },
       include: {
         createdBy: {
           select: {
@@ -769,6 +767,7 @@ class ProjectController {
             firstName: true,
             lastName: true,
             profilePictureUrl: true,
+            notificationSettings: { select: { projectApprovedRejected: true } },
           },
         },
         details: true,
@@ -776,13 +775,15 @@ class ProjectController {
       },
     });
 
-    await notificationController.createNotification({
-      userId: updated.createdById,
-      type: "PROJECT_APPROVED",
-      title: "Project Approved",
-      content: `Your project \"${updated.title}\" has been approved and published.`,
-      relatedEntityId: updated.id,
-    });
+    if (updated.createdBy.notificationSettings.projectApprovedRejected) {
+      await notificationController.createNotification({
+        userId: updated.createdById,
+        type: "PROJECT_APPROVED",
+        title: "Project Approved",
+        content: `Your project \"${updated.title}\" has been approved and published.`,
+        relatedEntityId: updated.id,
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -822,6 +823,7 @@ class ProjectController {
             firstName: true,
             lastName: true,
             profilePictureUrl: true,
+            notificationSettings: { select: { projectApprovedRejected: true } },
           },
         },
         details: true,
@@ -833,13 +835,15 @@ class ProjectController {
       ? ` Reason: ${payload.reason.trim()}`
       : "";
 
-    await notificationController.createNotification({
-      userId: updated.createdById,
-      type: "PROJECT_REJECTED",
-      title: "Project Rejected",
-      content: `Your project \"${updated.title}\" has been rejected and moved back to draft.${reasonSuffix}`,
-      relatedEntityId: updated.id,
-    });
+    if (updated.createdBy.notificationSettings.projectApprovedRejected) {
+      await notificationController.createNotification({
+        userId: updated.createdById,
+        type: "PROJECT_REJECTED",
+        title: "Project Rejected",
+        content: `Your project \"${updated.title}\" has been rejected and moved back to draft.${reasonSuffix}`,
+        relatedEntityId: updated.id,
+      });
+    }
 
     res.status(200).json({
       success: true,

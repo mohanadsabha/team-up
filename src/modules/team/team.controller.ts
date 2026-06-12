@@ -561,18 +561,25 @@ class TeamController {
             lastName: true,
             role: true,
             profilePictureUrl: true,
+            notificationSettings: {
+              select: {
+                teamStatusChanges: true,
+              },
+            },
           },
         },
       },
     });
 
-    await notificationController.createNotification({
-      userId: member.userId,
-      type: "TEAM_MEMBER_ADDED",
-      title: "Added to Team",
-      content: `You were added to team "${team.name}".`,
-      relatedEntityId: params.id,
-    });
+    if (member.user.notificationSettings.teamStatusChanges) {
+      await notificationController.createNotification({
+        userId: member.userId,
+        type: "TEAM_MEMBER_ADDED",
+        title: "Added to Team",
+        content: `You were added to team "${team.name}".`,
+        relatedEntityId: params.id,
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -647,18 +654,25 @@ class TeamController {
             lastName: true,
             role: true,
             profilePictureUrl: true,
+            notificationSettings: {
+              select: {
+                teamStatusChanges: true,
+              },
+            },
           },
         },
       },
     });
 
-    await notificationController.createNotification({
-      userId: updatedMember.userId,
-      type: "TEAM_MEMBER_UPDATED",
-      title: "Team Role Updated",
-      content: `Your role in team "${team.name}" was updated to ${updatedMember.role}.`,
-      relatedEntityId: teamId,
-    });
+    if (updatedMember.user.notificationSettings.teamStatusChanges) {
+      await notificationController.createNotification({
+        userId: updatedMember.userId,
+        type: "TEAM_MEMBER_UPDATED",
+        title: "Team Role Updated",
+        content: `Your role in team "${team.name}" was updated to ${updatedMember.role}.`,
+        relatedEntityId: teamId,
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -724,13 +738,19 @@ class TeamController {
       data: { removalStrikes: { increment: 1 } },
     });
 
-    await notificationController.createNotification({
-      userId: member.userId,
-      type: "TEAM_MEMBER_REMOVED",
-      title: "Removed from Team",
-      content: `You were removed from team "${team.name}".`,
-      relatedEntityId: teamId,
+    const teamNotify = await prisma.notificationUserSetting.findFirst({
+      where: { userId: member.userId },
+      select: { teamStatusChanges: true },
     });
+    if (teamNotify.teamStatusChanges) {
+      await notificationController.createNotification({
+        userId: member.userId,
+        type: "TEAM_MEMBER_REMOVED",
+        title: "Removed from Team",
+        content: `You were removed from team "${team.name}".`,
+        relatedEntityId: teamId,
+      });
+    }
 
     res.status(200).json({
       success: true,

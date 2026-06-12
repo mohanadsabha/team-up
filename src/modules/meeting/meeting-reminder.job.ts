@@ -74,14 +74,21 @@ export async function processMeetingReminders(now = new Date()) {
         if (existingReminder) {
           continue;
         }
-
-        await notificationController.createNotification({
-          userId: recipientId,
-          type: "MEETING_REMINDER",
-          title: reminderTitle,
-          content: `Your meeting starts at ${meeting.startAt.toISOString()} (${window.label} reminder).`,
-          relatedEntityId: meeting.id,
+        const meetingNotify = await prisma.notificationUserSetting.findUnique({
+          where: { userId: recipientId },
+          select: {
+            meetingReminders: true,
+          },
         });
+        if (meetingNotify.meetingReminders) {
+          await notificationController.createNotification({
+            userId: recipientId,
+            type: "MEETING_REMINDER",
+            title: reminderTitle,
+            content: `Your meeting starts at ${meeting.startAt.toISOString()} (${window.label} reminder).`,
+            relatedEntityId: meeting.id,
+          });
+        }
       }
 
       sent += 1;

@@ -224,13 +224,19 @@ class MilestoneController {
       select: { userId: true },
     });
     for (const member of teamMembers) {
-      await notificationController.createNotification({
-        userId: member.userId,
-        type: "MILESTONE_STATUS_CHANGED",
-        title: "New Milestone Added",
-        content: `Milestone "${milestone.title}" was added to your team.`,
-        relatedEntityId: milestone.id,
+      const milestoneNotify = await prisma.notificationUserSetting.findFirst({
+        where: { userId: member.userId },
+        select: { milestoneStatus: true },
       });
+      if (milestoneNotify.milestoneStatus) {
+        await notificationController.createNotification({
+          userId: member.userId,
+          type: "MILESTONE_STATUS_CHANGED",
+          title: "New Milestone Added",
+          content: `Milestone "${milestone.title}" was added to your team.`,
+          relatedEntityId: milestone.id,
+        });
+      }
     }
 
     res.status(201).json({
@@ -295,13 +301,19 @@ class MilestoneController {
       select: { userId: true },
     });
     for (const member of teamMembers) {
-      await notificationController.createNotification({
-        userId: member.userId,
-        type: "MILESTONE_STATUS_CHANGED",
-        title: "Milestone Updated",
-        content: `Milestone "${updated.title}" was updated.`,
-        relatedEntityId: updated.id,
+      const milestoneNotify = await prisma.notificationUserSetting.findFirst({
+        where: { userId: member.userId },
+        select: { milestoneStatus: true },
       });
+      if (milestoneNotify.milestoneStatus) {
+        await notificationController.createNotification({
+          userId: member.userId,
+          type: "MILESTONE_STATUS_CHANGED",
+          title: "Milestone Updated",
+          content: `Milestone "${updated.title}" was updated.`,
+          relatedEntityId: updated.id,
+        });
+      }
     }
     res.status(200).json({
       success: true,
@@ -350,13 +362,19 @@ class MilestoneController {
     await prisma.milestone.delete({ where: { id: params.id } });
 
     for (const m of membersForNotify) {
-      await notificationController.createNotification({
-        userId: m.userId,
-        type: "MILESTONE_STATUS_CHANGED",
-        title: "Milestone Deleted",
-        content: `A milestone ("${milestone.title}") was deleted from your team.`,
-        relatedEntityId: params.id,
+      const milestoneNotify = await prisma.notificationUserSetting.findFirst({
+        where: { userId: m.userId },
+        select: { milestoneStatus: true },
       });
+      if (milestoneNotify.milestoneStatus) {
+        await notificationController.createNotification({
+          userId: m.userId,
+          type: "MILESTONE_STATUS_CHANGED",
+          title: "Milestone Deleted",
+          content: `A milestone ("${milestone.title}") was deleted from your team.`,
+          relatedEntityId: params.id,
+        });
+      }
     }
 
     res
@@ -415,13 +433,19 @@ class MilestoneController {
 
     // Notify mentor of submission
     if (milestone.team.mentorId) {
-      await notificationController.createNotification({
-        userId: milestone.team.mentorId,
-        type: "MILESTONE_STATUS_CHANGED",
-        title: "New Milestone Submission",
-        content: `Milestone "${milestone.title}" has been submitted for review.`,
-        relatedEntityId: params.id,
+      const milestoneNotify = await prisma.notificationUserSetting.findFirst({
+        where: { userId: milestone.team.mentorId },
+        select: { milestoneStatus: true },
       });
+      if (milestoneNotify.milestoneStatus) {
+        await notificationController.createNotification({
+          userId: milestone.team.mentorId,
+          type: "MILESTONE_STATUS_CHANGED",
+          title: "New Milestone Submission",
+          content: `Milestone "${milestone.title}" has been submitted for review.`,
+          relatedEntityId: params.id,
+        });
+      }
     }
 
     res.status(200).json({
@@ -485,13 +509,19 @@ class MilestoneController {
     });
 
     for (const member of teamMembers) {
-      await notificationController.createNotification({
-        userId: member.userId,
-        type: "MILESTONE_STATUS_CHANGED",
-        title: `Milestone Review: ${payload.status}`,
-        content: `Milestone "${milestone.title}" has been reviewed and marked as ${payload.status}.`,
-        relatedEntityId: params.id,
+      const milestoneNotify = await prisma.notificationUserSetting.findFirst({
+        where: { userId: member.userId },
+        select: { milestoneStatus: true },
       });
+      if (milestoneNotify.milestoneStatus) {
+        await notificationController.createNotification({
+          userId: member.userId,
+          type: "MILESTONE_STATUS_CHANGED",
+          title: `Milestone Review: ${payload.status}`,
+          content: `Milestone "${milestone.title}" has been reviewed and marked as ${payload.status}.`,
+          relatedEntityId: params.id,
+        });
+      }
     }
 
     res.status(200).json({
