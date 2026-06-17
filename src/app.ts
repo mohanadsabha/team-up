@@ -22,6 +22,9 @@ import chatRoutes from "./modules/chat/chat.route";
 import meetingRoutes from "./modules/meeting/meeting.route";
 import joinRequestRoutes from "./modules/join-request/join-request.route";
 import settingsRoutes from "./modules/admin/settings/settings.route";
+import { paymentController } from "./modules/payment/payment.controller";
+
+type RawWebhookRequest = Request & { rawBody?: Buffer };
 
 const app = express();
 app.set("trust proxy", 1);
@@ -40,7 +43,14 @@ const corsOptions = {
 app.disable("x-powered-by");
 app.use(helmet());
 app.use(cors(corsOptions));
-app.use("/api/v1/payments/webhook", express.raw({ type: "application/json" }));
+app.post(
+  "/api/v1/payments/webhook",
+  express.raw({ type: "application/json" }),
+  (req: RawWebhookRequest, res: Response, next: NextFunction) => {
+    req.rawBody = Buffer.isBuffer(req.body) ? req.body : undefined;
+    paymentController.webhook(req, res, next);
+  },
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // This middleware for making req.query writable since express v5 made it getter only

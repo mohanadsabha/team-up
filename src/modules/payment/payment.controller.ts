@@ -314,6 +314,18 @@ class PaymentController {
         return next(new AppError("You cannot purchase your own project.", 400));
       }
 
+      const existingPayment = await prisma.payment.findFirst({
+        where: {
+          buyerId: buyer.id,
+          projectId: project.id,
+          status: "SUCCESS",
+        },
+      });
+
+      if (existingPayment) {
+        return next(new AppError("You have already purchased this project.", 409));
+      }
+
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         customer_email: buyer.email,
@@ -324,14 +336,14 @@ class PaymentController {
               unit_amount: amountInCents,
               product_data: {
                 name: project.title,
-                description: project.description,
+                description: project.description ?? project.summary,
               },
             },
             quantity: 1,
           },
         ],
         success_url: `${frontendUrl}/dashboard/projects-ideas/payment-success-page?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${frontendUrl}/payment?status=failed`,
+        cancel_url: `${frontendUrl}/dashboard/projects-ideas/payment-failed`,
         metadata: {
           buyerId: buyer.id,
           buyerEmail: buyer.email,
