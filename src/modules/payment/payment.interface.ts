@@ -10,9 +10,6 @@ export type IdParam = z.infer<typeof idParamSchema>;
 
 export const createPaymentSchema = z.object({
   projectId: z.string().trim().uuid(),
-  paymentMethod: z
-    .enum(["CREDIT_CARD", "DEBIT_CARD", "BANK_TRANSFER", "E_WALLET"])
-    .optional(),
 }) satisfies ZodType;
 
 export const updatePaymentStatusSchema = z.object({

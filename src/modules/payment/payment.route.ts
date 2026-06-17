@@ -17,7 +17,10 @@ router.use(protect);
 router.get("/", paymentController.getPayments);
 router.get("/history/transactions", paymentController.getTransactionHistory);
 router.get("/:id", paymentController.getPaymentById);
-router.post("/", paymentController.createPayment);
+router.post(
+  "/checkout",
+  paymentController.createCheckoutSession.bind(paymentController),
+);
 
 /**
  * ADMIN ENDPOINTS

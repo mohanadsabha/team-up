@@ -40,6 +40,7 @@ const corsOptions = {
 app.disable("x-powered-by");
 app.use(helmet());
 app.use(cors(corsOptions));
+app.use("/api/v1/payments/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // This middleware for making req.query writable since express v5 made it getter only
