@@ -73,7 +73,7 @@ class TeamController {
   ) => {
     const query = zodValidation(getTeamsQuerySchema, req.query);
     const isAdmin = req.user?.role === "SYSTEM_ADMIN";
-    const userId = req.user.userId;
+    const userId = req.user?.userId;
 
     const teams = await prisma.team.findMany({
       where: {

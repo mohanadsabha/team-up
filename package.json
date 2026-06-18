@@ -11,7 +11,9 @@
     "clean": "rimraf dist",
     "copy-files": "copyfiles -u 1 src/**/*.pug src/**/*.json dist/",
     "format": "prettier --write src/**/*.ts",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "npx tsx prisma/seed.ts --reset",
+    "db:reset": "npx tsx prisma/seed.ts --reset",
+    "test:flows": "npx tsx scripts/test-flows.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
