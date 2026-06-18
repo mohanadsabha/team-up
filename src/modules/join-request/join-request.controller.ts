@@ -17,6 +17,7 @@ import {
   StringObject,
 } from "./join-request.interface";
 import { notificationController } from "../notification/notification.controller";
+import { assertCanJoinNewWorkspace } from "../../utils/activeWorkspace.util";
 
 class JoinRequestController {
   // student applies to a team
@@ -35,11 +36,16 @@ class JoinRequestController {
     // Block users who have reached removal strike limit from requesting to join teams
     const requestingUser = await prisma.user.findUnique({
       where: { id: req.user.userId },
-      select: { removalStrikes: true },
+      select: { removalStrikes: true, role: true },
     });
     if (requestingUser?.removalStrikes && requestingUser.removalStrikes >= 3) {
       throw new AppError("You are blocked from joining teams.", 403);
     }
+
+    await assertCanJoinNewWorkspace(
+      req.user.userId,
+      requestingUser?.role ?? req.user.role,
+    );
 
     // check user is not already a member
     const existingMember = await prisma.teamMember.findUnique({
@@ -226,6 +232,7 @@ class JoinRequestController {
         where: { id: request.userId },
         select: {
           removalStrikes: true,
+          role: true,
           notificationSettings: {
             select: {
               joinRequestStatus: true,
@@ -236,6 +243,11 @@ class JoinRequestController {
       if (targetUser?.removalStrikes && targetUser.removalStrikes >= 3) {
         throw new AppError("User is blocked from joining teams.", 403);
       }
+
+      await assertCanJoinNewWorkspace(
+        request.userId,
+        targetUser?.role ?? "STUDENT",
+      );
 
       if (memberCount >= team.maxMembers) {
         throw new AppError("Team has reached maximum capacity.", 400);
