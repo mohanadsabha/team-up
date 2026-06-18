@@ -28,6 +28,7 @@ import {
 } from "./team.interface";
 import AppError from "../../utils/appError";
 import { prisma } from "../../config/prisma";
+import { assertCanJoinNewWorkspace } from "../../utils/activeWorkspace.util";
 import { notificationController } from "../notification/notification.controller";
 
 class TeamController {
@@ -72,9 +73,25 @@ class TeamController {
   ) => {
     const query = zodValidation(getTeamsQuerySchema, req.query);
     const isAdmin = req.user?.role === "SYSTEM_ADMIN";
+    const userId = req.user.userId;
 
     const teams = await prisma.team.findMany({
       where: {
+        ...(query.mine
+          ? {
+              OR: [
+                {
+                  members: {
+                    some: {
+                      userId,
+                      status: "APPROVED",
+                    },
+                  },
+                },
+                { mentorId: userId },
+              ],
+            }
+          : {}),
         ...(query.search
           ? {
               OR: [
@@ -123,6 +140,11 @@ class TeamController {
           : {}),
       },
       include: {
+        project: {
+          select: {
+            status: true,
+          },
+        },
         _count: {
           select: {
             members: {
@@ -176,6 +198,7 @@ class TeamController {
       moderationState: team.moderationState ?? null,
       maxMembers: team.maxMembers,
       memberCount: team._count.members,
+      projectStatus: team.project?.status ?? null,
       createdAt: team.createdAt,
       updatedAt: team.updatedAt,
       ...(isAdmin
@@ -290,12 +313,14 @@ class TeamController {
     // Ensure team university/college/department match the creating user's values
     const creator = await prisma.user.findUnique({
       where: { id: req.user.userId },
-      select: { universityId: true, collegeId: true, departmentId: true },
+      select: { universityId: true, collegeId: true, departmentId: true, role: true },
     });
 
     if (!creator) {
       throw new AppError("Creating user not found.", 404);
     }
+
+    await assertCanJoinNewWorkspace(req.user.userId, creator.role ?? req.user.role);
 
     if (payload.universityId && payload.universityId !== creator.universityId) {
       throw new AppError("Team university must match your university.", 400);

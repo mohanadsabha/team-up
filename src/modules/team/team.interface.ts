@@ -50,6 +50,10 @@ export const getTeamsQuerySchema = z.object({
   universityId: z.string().trim().uuid().optional(),
   collegeId: z.string().trim().uuid().optional(),
   departmentId: z.string().trim().uuid().optional(),
+  mine: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
 }) satisfies ZodType;
 
 export const rejectTeamSchema = z.object({
@@ -84,6 +88,7 @@ export type TeamResponse = {
   status: string;
   previousStatus?: string | null;
   moderationState?: string | null;
+  projectStatus?: string | null;
   maxMembers: number;
   memberCount: number;
   createdAt: Date;
