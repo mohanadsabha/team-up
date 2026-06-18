@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "dist/server.js",
   "scripts": {
-    "build": "npm run clean && prisma generate && tsc && npm run copy-files",
+    "build": "npm run clean && prisma generate && tsc && npm run copy-files && prisma migrate deploy",
     "postinstall": "prisma generate",
     "start": "node dist/server.js",
     "dev": "nodemon src/server.ts",
