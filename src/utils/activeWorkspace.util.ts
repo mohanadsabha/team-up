@@ -6,16 +6,12 @@ export const isWorkspaceStillActive = (
   projectId: string | null,
   projectStatus: string | null | undefined,
 ) => {
-  if (teamStatus === "COMPLETED") {
+  if (!projectId || !projectStatus) {
     return false;
   }
 
-  if (!projectId) {
-    return true;
-  }
-
-  if (!projectStatus) {
-    return true;
+  if (teamStatus === "COMPLETED") {
+    return false;
   }
 
   return projectStatus !== "SUBMITTED" && projectStatus !== "COMPLETED";
@@ -37,12 +33,12 @@ export const getActiveMemberTeamForUser = async (userId: string) => {
   for (const membership of memberships) {
     const { team } = membership;
 
+    if (!team.projectId || !team.project) {
+      continue;
+    }
+
     if (
-      isWorkspaceStillActive(
-        team.status,
-        team.projectId,
-        team.project?.status ?? null,
-      )
+      isWorkspaceStillActive(team.status, team.projectId, team.project.status)
     ) {
       return team;
     }
