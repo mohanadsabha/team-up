@@ -19,6 +19,7 @@ import {
 import AppError from "../../utils/appError";
 import { prisma } from "../../config/prisma";
 import { notificationController } from "../notification/notification.controller";
+import { assertTeamWorkspaceAccess } from "../../utils/teamAccess.util";
 
 class TaskController {
   private assertTeamMember = async (
@@ -26,18 +27,7 @@ class TaskController {
     userId: string,
     role: string,
   ) => {
-    if (role === "SYSTEM_ADMIN") {
-      return;
-    }
-
-    const membership = await prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId, userId } },
-      select: { id: true, status: true },
-    });
-
-    if (!membership || membership.status !== "APPROVED") {
-      throw new AppError("You are not a member of this team.", 403);
-    }
+    await assertTeamWorkspaceAccess(teamId, userId, role);
   };
 
   private assertTeamAdmin = async (

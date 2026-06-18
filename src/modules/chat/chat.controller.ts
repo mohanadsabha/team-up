@@ -3,6 +3,7 @@ import AppError from "../../utils/appError";
 import { prisma } from "../../config/prisma";
 import { zodValidation } from "../../utils/zod.util";
 import { NotificationType } from "../../generated/prisma/enums";
+import { assertTeamWorkspaceAccess, canAccessTeamWorkspace, assertTeamChatAccess } from "../../utils/teamAccess.util";
 import {
   ChatDetailsResponse,
   ChatsListResponse,
@@ -39,16 +40,12 @@ class ChatController {
         throw new AppError("teamId is required for TEAM chats.", 400);
       }
 
-      // Verify user is team member
-      const isMember = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: { teamId: payload.teamId, userId: req.user.userId },
-        },
-      });
-
-      if (!isMember && req.user.role !== "SYSTEM_ADMIN") {
-        throw new AppError("You are not a member of this team.", 403);
-      }
+      // Verify user can access this team workspace
+      await assertTeamWorkspaceAccess(
+        payload.teamId,
+        req.user.userId,
+        req.user.role,
+      );
 
       // Ensure only one TEAM chat per team — return existing if present
       const existing = await prisma.chat.findFirst({
@@ -122,18 +119,11 @@ class ChatController {
       });
       if (!jr) throw new AppError("Join request not found.", 404);
 
-      // Allow the applicant, any team member, or system admin to create/access the chat
-      const isMember = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: { teamId: jr.teamId, userId: req.user.userId },
-        },
-      });
+      const canAccessJoinRequestChat =
+        req.user.userId === jr.userId ||
+        (await canAccessTeamWorkspace(jr.teamId, req.user.userId, req.user.role));
 
-      if (
-        req.user.userId !== jr.userId &&
-        !isMember &&
-        req.user.role !== "SYSTEM_ADMIN"
-      ) {
+      if (!canAccessJoinRequestChat) {
         throw new AppError(
           "You are not authorized to create or access this join-request chat.",
           403,
@@ -212,9 +202,11 @@ class ChatController {
   ) => {
     const params = zodValidation(idParamSchema, req.params);
 
-    const isMember = await prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId: params.id, userId: req.user.userId } },
-    });
+    const canAccessTeam = await canAccessTeamWorkspace(
+      params.id,
+      req.user.userId,
+      req.user.role,
+    );
 
     const applicantChat = await prisma.chat.findFirst({
       where: {
@@ -240,8 +232,8 @@ class ChatController {
       orderBy: { createdAt: "desc" },
     });
 
-    if (isMember || req.user.role === "SYSTEM_ADMIN") {
-      // team members can see all chats for the team
+    if (canAccessTeam) {
+      // team members and approved mentors can see all team chats
     } else if (applicantChat) {
       chats = [applicantChat];
     } else {
@@ -309,23 +301,12 @@ class ChatController {
       throw new AppError("Chat not found.", 404);
     }
 
-    // Verify user is team member OR the join-request applicant
-    const isMember = await prisma.teamMember.findUnique({
-      where: {
-        teamId_userId: { teamId: chat.teamId, userId: req.user.userId },
-      },
-    });
-
-    const isApplicant = chat.joinRequest
-      ? chat.joinRequest.userId === req.user.userId
-      : false;
-
-    if (!isMember && !isApplicant && req.user.role !== "SYSTEM_ADMIN") {
-      throw new AppError(
-        "You are not a member of this team or a participant in this chat.",
-        403,
-      );
-    }
+    await assertTeamChatAccess(
+      chat.teamId,
+      req.user.userId,
+      req.user.role,
+      chat.joinRequest?.userId ?? null,
+    );
 
     const lastMessage = await prisma.message.findFirst({
       where: { chatId: params.id },
@@ -379,23 +360,12 @@ class ChatController {
       throw new AppError("Chat not found.", 404);
     }
 
-    // Verify user is team member or join-request applicant
-    const isMember = await prisma.teamMember.findUnique({
-      where: {
-        teamId_userId: { teamId: chat.teamId, userId: req.user.userId },
-      },
-    });
-
-    const isApplicant = chat.joinRequest
-      ? chat.joinRequest.userId === req.user.userId
-      : false;
-
-    if (!isMember && !isApplicant && req.user.role !== "SYSTEM_ADMIN") {
-      throw new AppError(
-        "You are not a member of this team or participant in this chat.",
-        403,
-      );
-    }
+    await assertTeamChatAccess(
+      chat.teamId,
+      req.user.userId,
+      req.user.role,
+      chat.joinRequest?.userId ?? null,
+    );
 
     const messages = await prisma.message.findMany({
       where: { chatId: params.id },
@@ -440,23 +410,12 @@ class ChatController {
       throw new AppError("Chat not found.", 404);
     }
 
-    // Verify user is team member or join-request applicant
-    const isMember = await prisma.teamMember.findUnique({
-      where: {
-        teamId_userId: { teamId: chat.teamId, userId: req.user.userId },
-      },
-    });
-
-    const isApplicant = chat.joinRequest
-      ? chat.joinRequest.userId === req.user.userId
-      : false;
-
-    if (!isMember && !isApplicant && req.user.role !== "SYSTEM_ADMIN") {
-      throw new AppError(
-        "You are not a member of this team or participant in this chat.",
-        403,
-      );
-    }
+    await assertTeamChatAccess(
+      chat.teamId,
+      req.user.userId,
+      req.user.role,
+      chat.joinRequest?.userId ?? null,
+    );
 
     const message = await prisma.message.create({
       data: {
@@ -483,7 +442,14 @@ class ChatController {
         where: { teamId: chat.teamId },
         select: { userId: true },
       });
+      const team = await prisma.team.findUnique({
+        where: { id: chat.teamId },
+        select: { mentorId: true },
+      });
       const recipients = new Set<string>(members.map((m) => m.userId));
+      if (team?.mentorId) {
+        recipients.add(team.mentorId);
+      }
       if (chat.joinRequest && chat.joinRequest.userId)
         recipients.add(chat.joinRequest.userId);
       recipients.delete(req.user.userId);

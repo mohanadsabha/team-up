@@ -18,21 +18,12 @@ import {
   StringObject,
 } from "./meeting.interface";
 import { notificationController } from "../notification/notification.controller";
+import { assertTeamWorkspaceAccess } from "../../utils/teamAccess.util";
 // Reminder processing is handled by the scheduler in `meeting-reminder.job`.
 
 class MeetingController {
   private async assertTeamAccess(teamId: string, userId: string, role: string) {
-    if (role === "SYSTEM_ADMIN") {
-      return;
-    }
-
-    const membership = await prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId, userId } },
-    });
-
-    if (!membership) {
-      throw new AppError("You are not a member of this team.", 403);
-    }
+    await assertTeamWorkspaceAccess(teamId, userId, role);
   }
 
   private async assertCanManageMeeting(
