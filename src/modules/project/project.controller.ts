@@ -721,14 +721,12 @@ class ProjectController {
 
     await this.canManageProject(params.id, req.user.userId, req.user.role);
 
-    const settings = await prisma.platformSettings.findFirst();
-
     const project = await prisma.graduationProject.update({
       where: { id: params.id },
       data: {
-        status: settings.requireIdeaApproval ? "SUBMITTED" : "PUBLISHED",
-        isPublished: settings.requireIdeaApproval ? false : true,
-        isApproved: settings.requireIdeaApproval ? false : true,
+        status: "SUBMITTED",
+        isPublished: false,
+        isApproved: false,
       },
       include: {
         createdBy: {
@@ -744,6 +742,25 @@ class ProjectController {
         files: true,
       },
     });
+
+    const team = await prisma.team.findFirst({
+      where: { projectId: params.id },
+      select: { mentorId: true, name: true },
+    });
+
+    if (team?.mentorId) {
+      try {
+        await notificationController.createNotification({
+          userId: team.mentorId,
+          type: "MILESTONE_STATUS_CHANGED",
+          title: "Project Submitted for Review",
+          content: `Team "${team.name}" submitted "${project.title}" for your review.`,
+          relatedEntityId: project.id,
+        });
+      } catch {
+        // Do not block submission if notification delivery fails.
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -790,7 +807,7 @@ class ProjectController {
       },
     });
 
-    if (updated.createdBy.notificationSettings.projectApprovedRejected) {
+    if (updated.createdBy.notificationSettings?.projectApprovedRejected !== false) {
       await notificationController.createNotification({
         userId: updated.createdById,
         type: "PROJECT_APPROVED",
@@ -850,7 +867,7 @@ class ProjectController {
       ? ` Reason: ${payload.reason.trim()}`
       : "";
 
-    if (updated.createdBy.notificationSettings.projectApprovedRejected) {
+    if (updated.createdBy.notificationSettings?.projectApprovedRejected !== false) {
       await notificationController.createNotification({
         userId: updated.createdById,
         type: "PROJECT_REJECTED",
