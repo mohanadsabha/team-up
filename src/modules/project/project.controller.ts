@@ -702,8 +702,19 @@ class ProjectController {
 
     await this.canManageProject(params.id, req.user.userId, req.user.role);
 
-    await prisma.graduationProject.delete({
-      where: { id: params.id },
+    await prisma.$transaction(async (tx) => {
+      const team = await tx.team.findFirst({
+        where: { projectId: params.id },
+        select: { id: true },
+      });
+
+      if (team) {
+        await tx.team.delete({ where: { id: team.id } });
+      }
+
+      await tx.graduationProject.delete({
+        where: { id: params.id },
+      });
     });
 
     res.status(200).json({
