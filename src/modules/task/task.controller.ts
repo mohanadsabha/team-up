@@ -30,12 +30,21 @@ class TaskController {
     await assertTeamWorkspaceAccess(teamId, userId, role);
   };
 
-  private assertTeamAdmin = async (
+  private assertCanManageTasks = async (
     teamId: string,
     userId: string,
     role: string,
   ) => {
     if (role === "SYSTEM_ADMIN") {
+      return;
+    }
+
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { mentorId: true, mentorApproved: true },
+    });
+
+    if (team?.mentorId === userId && team.mentorApproved) {
       return;
     }
 
@@ -49,7 +58,7 @@ class TaskController {
       adminMembership.status !== "APPROVED" ||
       adminMembership.role !== "TEAM_ADMIN"
     ) {
-      throw new AppError("Only team admins can perform this action.", 403);
+      throw new AppError("Only team admins or mentors can perform this action.", 403);
     }
   };
 
@@ -156,7 +165,7 @@ class TaskController {
       throw new AppError("Team not found.", 404);
     }
 
-    await this.assertTeamAdmin(payload.teamId, req.user.userId, req.user.role);
+    await this.assertCanManageTasks(payload.teamId, req.user.userId, req.user.role);
 
     if (payload.assignedTo) {
       const user = await prisma.user.findUnique({
@@ -378,7 +387,7 @@ class TaskController {
       throw new AppError("Task not found.", 404);
     }
 
-    await this.assertTeamAdmin(task.teamId, req.user.userId, req.user.role);
+    await this.assertCanManageTasks(task.teamId, req.user.userId, req.user.role);
 
     await prisma.task.delete({
       where: { id: params.id },

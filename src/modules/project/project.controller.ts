@@ -374,9 +374,10 @@ class ProjectController {
   ) => {
     const params = zodValidation(idParamSchema, req.params);
     const isAdmin = req.user?.role === "SYSTEM_ADMIN";
+    const userId = req.user?.userId;
 
     const project = await prisma.graduationProject.findFirst({
-      where: isAdmin ? { id: params.id } : { id: params.id, isPublished: true },
+      where: { id: params.id },
       include: {
         createdBy: {
           select: {
@@ -396,13 +397,41 @@ class ProjectController {
       throw new AppError("Project not found.", 404);
     }
 
+    const isOwner = userId === project.createdById;
+    let hasTeamAccess = false;
+
+    if (userId && !isAdmin) {
+      const linkedTeam = await prisma.team.findFirst({
+        where: {
+          projectId: project.id,
+          OR: [
+            { mentorId: userId, mentorApproved: true },
+            {
+              members: {
+                some: {
+                  userId,
+                  status: "APPROVED",
+                },
+              },
+            },
+          ],
+        },
+        select: { id: true },
+      });
+
+      hasTeamAccess = Boolean(linkedTeam);
+    }
+
+    if (!isAdmin && !isOwner && !hasTeamAccess && !project.isPublished) {
+      throw new AppError("Project not found.", 404);
+    }
+
     await prisma.graduationProject.update({
       where: { id: project.id },
       data: { viewsCount: { increment: 1 } },
     });
     project.viewsCount += 1;
 
-    const isOwner = req.user?.userId === project.createdById;
     const hasPaid = req.user?.userId
       ? !!(await prisma.payment.findFirst({
           where: {
