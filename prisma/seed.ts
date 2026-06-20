@@ -560,14 +560,15 @@ const main = async () => {
     console.log("");
   }
 
-  console.log("SCENARIOS:");
-  console.log("- Ahmad + team: active workspace with tasks, chat, meeting");
-  console.log("- Tarek team: published on Find Team, Sami has pending join request");
-  console.log("- Laila team: submitted project (read-only workspace)");
-  console.log("- Yousef / Dina / Reem / Ziad: no team — can join or create");
-  console.log("- Monira: published free + paid project ideas (each with a recruiting team)");
-  console.log("- admin@teamup.test: system admin dashboard");
-  console.log("- Mentors Sara/Omar/Lina: mentor workspace switching");
+  console.log("STUDENT SCENARIOS (password: TeamUp2026!):");
+  console.log("- student.ahmad / maya / karim / nour → active Smart Campus team (dashboard with workspace)");
+  console.log("- student.tarek / hana → Telemedicine team lead & member (published, recruiting)");
+  console.log("- student.laila / fadi → AI Tutoring team (SUBMITTED project, read-only workspace)");
+  console.log("- student.sami → no team, pending join request to Telemedicine");
+  console.log("- student.yousef / dina / reem → no team, can browse Find a Team and join");
+  console.log("- graduate.monira → published free + paid ideas with recruiting teams");
+  console.log("- admin@teamup.test → system admin dashboard");
+  console.log("- mentor.sara / omar / lina → mentor dashboards with supervised teams");
 };
 
 main()
