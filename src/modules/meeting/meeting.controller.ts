@@ -72,12 +72,20 @@ class MeetingController {
         ...(req.user.role !== "SYSTEM_ADMIN" && !query.teamId
           ? {
               team: {
-                members: {
-                  some: {
-                    userId: req.user.userId,
-                    status: "APPROVED",
+                OR: [
+                  {
+                    members: {
+                      some: {
+                        userId: req.user.userId,
+                        status: "APPROVED",
+                      },
+                    },
                   },
-                },
+                  {
+                    mentorId: req.user.userId,
+                    mentorApproved: true,
+                  },
+                ],
               },
             }
           : {}),
