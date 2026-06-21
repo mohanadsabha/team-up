@@ -15,3 +15,14 @@ services:
         value: https://team-up-xisr.onrender.com/api/v1/auth/google/callback
       - key: LINKEDIN_REDIRECT_URI
         value: https://team-up-xisr.onrender.com/api/v1/auth/linkedin/callback
+      # SendGrid SMTP — set secrets in Render dashboard (Environment tab)
+      - key: EMAIL_HOST
+        value: smtp.sendgrid.net
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USERNAME
+        value: apikey
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: EMAIL
+        sync: false
