@@ -249,9 +249,21 @@ class AuthController {
       },
     });
 
-    void this.sendUserVerificationEmail(user).catch((error) => {
-      console.error("Failed to send verification email:", error);
-    });
+    const emailTask = this.sendUserVerificationEmail(user)
+      .then(() => {
+        console.log(`Verification email sent to ${user.email}`);
+      })
+      .catch((error) => {
+        console.error(
+          `Failed to send verification email to ${user.email}:`,
+          error,
+        );
+      });
+
+    await Promise.race([
+      emailTask,
+      new Promise<void>((resolve) => setTimeout(resolve, 2500)),
+    ]);
 
     const message = requireUserApproval
       ? "Account created successfully. We sent a verification email to your inbox. After you verify your email, an admin will need to approve your account before you can log in."
@@ -1134,6 +1146,10 @@ class AuthController {
     email: string;
     firstName: string | null;
   }) {
+    if (!process.env.FRONTEND_URL?.trim()) {
+      throw new Error("FRONTEND_URL is not configured.");
+    }
+
     const verificationToken = sign(
       {
         userId: user.id,
