@@ -322,15 +322,6 @@ class TeamController {
 
     await assertCanJoinNewWorkspace(req.user.userId, creator.role ?? req.user.role);
 
-    if (payload.universityId && payload.universityId !== creator.universityId) {
-      throw new AppError("Team university must match your university.", 400);
-    }
-    if (payload.collegeId && payload.collegeId !== creator.collegeId) {
-      throw new AppError("Team college must match your college.", 400);
-    }
-    if (payload.departmentId && payload.departmentId !== creator.departmentId) {
-      throw new AppError("Team department must match your department.", 400);
-    }
     const settings = await prisma.platformSettings.findFirst();
 
     const team = await prisma.$transaction(async (tx) => {
