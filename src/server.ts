@@ -9,6 +9,7 @@ import app from "./app";
 import { bootstrapMeetingReminders } from "./modules/meeting/meeting-reminder.job";
 import { bootstrapTaskDueReminders } from "./modules/task/task-due-reminder.job";
 import { initializeScheduler } from "./utils/scheduler.util";
+import { logEmailConfigurationStatus } from "./utils/email-config";
 
 const PORT = process.env.PORT || 3000;
 const meetingRuntime = bootstrapMeetingReminders();
@@ -17,6 +18,7 @@ const scheduledJobs = initializeScheduler();
 
 const server = meetingRuntime.runApi && taskDueRuntime.runApi
   ? app.listen(PORT, () => {
+      logEmailConfigurationStatus();
       console.log(`App running on port ${PORT}...`);
     })
   : null;

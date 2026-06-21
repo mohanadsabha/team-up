@@ -57,6 +57,7 @@ export type AuthTokenResponse = {
   message: string;
   token?: string;
   verificationToken?: string;
+  verificationEmailSent?: boolean;
   user: AuthUser;
 };
 
