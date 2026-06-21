@@ -29,6 +29,7 @@ class Email {
   private from?: string;
   private to?: string;
   private name?: string;
+  private transporter: nodemailer.Transporter | null = null;
 
   private resolveTemplatePath(template: string) {
     const candidates = [
@@ -71,10 +72,18 @@ class Email {
         user: process.env.EMAIL_USERNAME,
         pass: process.env.EMAIL_PASSWORD,
       },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 15_000,
+      connectionTimeout: 8_000,
+      greetingTimeout: 8_000,
+      socketTimeout: 10_000,
     });
+  }
+
+  private getTransporter() {
+    if (!this.transporter) {
+      this.transporter = this.createTransporter();
+    }
+
+    return this.transporter;
   }
 
   private formatFromAddress() {
@@ -103,7 +112,7 @@ class Email {
       }),
     };
 
-    const info = await this.createTransporter().sendMail(mailOptions);
+    const info = await this.getTransporter().sendMail(mailOptions);
     console.log(
       `Email "${subject}" accepted by SMTP for ${this.to} (${info.messageId ?? "no-id"})`,
     );
