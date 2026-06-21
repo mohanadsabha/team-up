@@ -218,123 +218,53 @@ class AuthController {
     const passwordHash = await hash(payload.password, 12);
     const now = new Date();
 
-    // check platform settings
     const settings = await prisma.platformSettings.findFirst();
-    if (settings.autoActivateUsers && !settings.requireUserApproval) {
-      const user = await prisma.user.create({
-        data: {
-          username: payload.username,
-          email: payload.email,
-          passwordHash,
-          firstName: payload.firstName,
-          lastName: payload.lastName,
-          role: payload.role,
-          registrationMethod: "EMAIL",
-          isActive: true,
-          isVerified: true,
-          universityId: payload.universityId,
-          collegeId: payload.collegeId ?? null,
-          departmentId: payload.departmentId ?? null,
-          academicProfile: {
-            create: {
-              major: payload.major,
-              skills: normalizedSkills,
-            },
-          },
-          lastLogin: now,
-        },
-      });
-      const token = signJWT({ userId: user.id, role: user.role });
-      res.status(201).json({
-        success: true,
-        message: "Account created successfully and activated",
-        token,
-        user: this.sanitizeUser(user),
-      });
-    } else if (settings.requireUserApproval) {
-      const user = await prisma.user.create({
-        data: {
-          username: payload.username,
-          email: payload.email,
-          passwordHash,
-          firstName: payload.firstName,
-          lastName: payload.lastName,
-          role: payload.role,
-          registrationMethod: "EMAIL",
-          isActive: false,
-          isVerified: true,
-          universityId: payload.universityId,
-          collegeId: payload.collegeId ?? null,
-          departmentId: payload.departmentId ?? null,
-          academicProfile: {
-            create: {
-              major: payload.major,
-              skills: normalizedSkills,
-            },
-          },
-          lastLogin: now,
-        },
-      });
-      const token = signJWT({ userId: user.id, role: user.role });
-      res.status(201).json({
-        success: true,
-        message: "Account created successfully, wait for admin activiation",
-        token,
-        user: this.sanitizeUser(user),
-      });
-    } else {
-      const user = await prisma.user.create({
-        data: {
-          username: payload.username,
-          email: payload.email,
-          passwordHash,
-          firstName: payload.firstName,
-          lastName: payload.lastName,
-          role: payload.role,
-          registrationMethod: "EMAIL",
-          isActive: false,
-          isVerified: false,
-          universityId: payload.universityId,
-          collegeId: payload.collegeId ?? null,
-          departmentId: payload.departmentId ?? null,
-          academicProfile: {
-            create: {
-              major: payload.major,
-              skills: normalizedSkills,
-            },
-          },
-          lastLogin: now,
-        },
-      });
+    const requireUserApproval = settings?.requireUserApproval ?? false;
 
-      const verificationToken = sign(
-        {
-          userId: user.id,
-          email: user.email,
-          purpose: "verify-email",
+    const user = await prisma.user.create({
+      data: {
+        username: payload.username,
+        email: payload.email,
+        passwordHash,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        role: payload.role,
+        registrationMethod: "EMAIL",
+        isActive: false,
+        isVerified: false,
+        universityId: payload.universityId,
+        collegeId: payload.collegeId ?? null,
+        departmentId: payload.departmentId ?? null,
+        academicProfile: {
+          create: {
+            major: payload.major,
+            skills: normalizedSkills,
+          },
         },
-        process.env.JWT_SECRET,
-        {
-          expiresIn: "1d" as StringValue,
-        },
+        lastLogin: now,
+      },
+    });
+
+    try {
+      await this.sendUserVerificationEmail(user);
+    } catch (error) {
+      await prisma.user.delete({ where: { id: user.id } });
+      console.error("Failed to send verification email:", error);
+      throw new AppError(
+        "We could not send the verification email. Please try again later or contact support.",
+        500,
       );
-      const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
-
-      await emailService.sendEmailVerification({
-        to: user.email,
-        name: user.firstName,
-        verificationUrl,
-      });
-
-      res.status(201).json({
-        success: true,
-        message:
-          "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in.",
-        //FIXME
-        verificationToken,
-        user: this.sanitizeUser(user),
-      });
     }
+
+    const message = requireUserApproval
+      ? "Account created successfully. We sent a verification email to your inbox. After you verify your email, an admin will need to approve your account before you can log in."
+      : "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in.";
+
+    res.status(201).json({
+      success: true,
+      message,
+      user: this.sanitizeUser(user),
+    });
   };
 
   public login = async (
@@ -407,7 +337,7 @@ class AuthController {
     }
     const settings = await prisma.platformSettings.findFirst();
 
-    if (settings.requireUserApproval) {
+    if (settings?.requireUserApproval) {
       if (!user.isVerified || !user.emailVerifiedAt) {
         await prisma.user.update({
           where: { id: user.id },
@@ -1201,6 +1131,31 @@ class AuthController {
       `Hard deleted ${usersToDelete.length} accounts older than 90 days.`,
     );
   };
+
+  private async sendUserVerificationEmail(user: {
+    id: string;
+    email: string;
+    firstName: string | null;
+  }) {
+    const verificationToken = sign(
+      {
+        userId: user.id,
+        email: user.email,
+        purpose: "verify-email",
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1d" as StringValue,
+      },
+    );
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+    await emailService.sendEmailVerification({
+      to: user.email,
+      name: user.firstName ?? user.email,
+      verificationUrl,
+    });
+  }
 
   private isPasswordResetTokenPayload(
     payload: unknown,
