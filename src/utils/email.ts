@@ -33,11 +33,10 @@ class Email {
     if (
       !process.env.EMAIL_HOST ||
       !process.env.EMAIL_USERNAME ||
-      !process.env.EMAIL_PASSWORD ||
-      !process.env.EMAIL
+      !process.env.EMAIL_PASSWORD
     ) {
-      throw new Error(
-        "Missing email environment variables. Please check EMAIL, EMAIL_HOST, EMAIL_USERNAME, and EMAIL_PASSWORD.",
+      console.error(
+        "Missing email environment variables. Please check EMAIL_HOST, EMAIL_USERNAME, EMAIL_PASSWORD.",
       );
     }
 
