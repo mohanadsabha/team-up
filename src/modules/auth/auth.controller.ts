@@ -36,6 +36,11 @@ import { sign, verify, JwtPayload } from "jsonwebtoken";
 import type { StringValue } from "ms";
 import { emailService } from "../../utils/email";
 import axios from "axios";
+import {
+  decodeOAuthState,
+  encodeOAuthState,
+  resolveOAuthReturnUrl,
+} from "../../utils/oauth-redirect";
 
 type PasswordResetTokenPayload = JwtPayload & {
   userId: string;
@@ -377,6 +382,8 @@ class AuthController {
 
   public google = async (req: Request, res: Response, _next: NextFunction) => {
     const scope = encodeURIComponent("openid email profile");
+    const returnUrl = resolveOAuthReturnUrl(req);
+    const state = encodeOAuthState(returnUrl);
 
     const url =
       `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -385,7 +392,8 @@ class AuthController {
       `&response_type=code` +
       `&scope=${scope}` +
       `&access_type=offline` +
-      `&prompt=consent`;
+      `&prompt=consent` +
+      `&state=${encodeURIComponent(state)}`;
 
     res.redirect(url);
   };
@@ -396,7 +404,9 @@ class AuthController {
     _next: NextFunction,
   ) => {
     const scope = "openid profile email";
-    const redirectUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.LINKEDIN_CLIENT_ID}&redirect_uri=${process.env.LINKEDIN_REDIRECT_URI}&scope=${scope}&state=${process.env.LINKEDIN_STATE}`;
+    const returnUrl = resolveOAuthReturnUrl(req);
+    const state = encodeOAuthState(returnUrl);
+    const redirectUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.LINKEDIN_CLIENT_ID}&redirect_uri=${process.env.LINKEDIN_REDIRECT_URI}&scope=${scope}&state=${encodeURIComponent(state)}`;
 
     res.redirect(redirectUrl);
   };
@@ -433,7 +443,10 @@ class AuthController {
     });
 
     const { sub, email, given_name, family_name } = userInfo.data;
-    const frontendBaseUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const frontendBaseUrl = resolveOAuthReturnUrl(
+      req,
+      decodeOAuthState(req.query.state),
+    );
 
     // 3. Find or create user
     let user = await prisma.user.findUnique({
@@ -493,7 +506,10 @@ class AuthController {
     });
 
     const { access_token } = tokenRes.data;
-    const frontendBaseUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const frontendBaseUrl = resolveOAuthReturnUrl(
+      req,
+      decodeOAuthState(req.query.state),
+    );
 
     // 2. Get user profile (OpenID)
     const userRes = await axios.get(

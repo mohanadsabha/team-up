@@ -30,7 +30,12 @@ const app = express();
 app.set("trust proxy", 1);
 
 const corsOptions = {
-  origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_WWW],
+  origin: [
+    process.env.FRONTEND_URL,
+    process.env.FRONTEND_URL_WWW,
+    "https://team-up-website-front.vercel.app",
+    "http://localhost:3000",
+  ].filter(Boolean),
   methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
   credentials: true,
 };
