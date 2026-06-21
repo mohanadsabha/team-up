@@ -107,3 +107,43 @@ export const resolveOAuthReturnUrl = (
       PRODUCTION_FRONTEND_URL,
   );
 };
+
+export type OAuthProvider = "google" | "linkedin";
+
+const getRequestOrigin = (req: Request) => {
+  const host = req.get("x-forwarded-host") ?? req.get("host");
+  if (!host) {
+    return null;
+  }
+
+  const forwardedProto = req.get("x-forwarded-proto");
+  const protocol =
+    forwardedProto?.split(",")[0]?.trim() ??
+    (req.secure ? "https" : req.protocol);
+
+  return `${protocol}://${host}`;
+};
+
+export const resolveOAuthCallbackUrl = (
+  req: Request,
+  provider: OAuthProvider,
+) => {
+  const envKey =
+    provider === "google" ? "GOOGLE_REDIRECT_URI" : "LINKEDIN_REDIRECT_URI";
+  const configured = process.env[envKey]?.trim();
+  const requestOrigin = getRequestOrigin(req);
+
+  if (requestOrigin) {
+    const { host } = new URL(requestOrigin);
+    const isLocal =
+      host.startsWith("localhost") || host.startsWith("127.0.0.1");
+
+    if (!isLocal) {
+      return `${requestOrigin}/api/v1/auth/${provider}/callback`;
+    }
+  }
+
+  return (
+    configured ?? `http://localhost:3001/api/v1/auth/${provider}/callback`
+  );
+};

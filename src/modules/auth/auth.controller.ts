@@ -39,6 +39,7 @@ import axios from "axios";
 import {
   decodeOAuthState,
   encodeOAuthState,
+  resolveOAuthCallbackUrl,
   resolveOAuthReturnUrl,
 } from "../../utils/oauth-redirect";
 
@@ -384,11 +385,12 @@ class AuthController {
     const scope = encodeURIComponent("openid email profile");
     const returnUrl = resolveOAuthReturnUrl(req);
     const state = encodeOAuthState(returnUrl);
+    const redirectUri = resolveOAuthCallbackUrl(req, "google");
 
     const url =
       `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${process.env.GOOGLE_CLIENT_ID}` +
-      `&redirect_uri=${process.env.GOOGLE_REDIRECT_URI}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_type=code` +
       `&scope=${scope}` +
       `&access_type=offline` +
@@ -406,7 +408,10 @@ class AuthController {
     const scope = "openid profile email";
     const returnUrl = resolveOAuthReturnUrl(req);
     const state = encodeOAuthState(returnUrl);
-    const redirectUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.LINKEDIN_CLIENT_ID}&redirect_uri=${process.env.LINKEDIN_REDIRECT_URI}&scope=${scope}&state=${encodeURIComponent(state)}`;
+    const redirectUri = encodeURIComponent(
+      resolveOAuthCallbackUrl(req, "linkedin"),
+    );
+    const redirectUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.LINKEDIN_CLIENT_ID}&redirect_uri=${redirectUri}&scope=${scope}&state=${encodeURIComponent(state)}`;
 
     res.redirect(redirectUrl);
   };
@@ -417,6 +422,7 @@ class AuthController {
     _next: NextFunction,
   ) => {
     const { code } = req.query;
+    const redirectUri = resolveOAuthCallbackUrl(req, "linkedin");
     // 1. Exchange code for access token
     const tokenRes = await axios.post(
       "https://www.linkedin.com/oauth/v2/accessToken",
@@ -425,7 +431,7 @@ class AuthController {
         params: {
           grant_type: "authorization_code",
           code,
-          redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+          redirect_uri: redirectUri,
           client_id: process.env.LINKEDIN_CLIENT_ID,
           client_secret: process.env.LINKEDIN_CLIENT_SECRET,
         },
@@ -496,12 +502,13 @@ class AuthController {
     _next: NextFunction,
   ) => {
     const { code } = req.query;
+    const redirectUri = resolveOAuthCallbackUrl(req, "google");
     // 1. Exchange code for token
     const tokenRes = await axios.post("https://oauth2.googleapis.com/token", {
       code,
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      redirect_uri: redirectUri,
       grant_type: "authorization_code",
     });
 
