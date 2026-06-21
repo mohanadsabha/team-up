@@ -19,5 +19,11 @@ declare namespace NodeJS {
     SERVER_MODE?: "api" | "worker" | "all";
     MEETING_REMINDER_INTERVAL_MS?: string;
     PAYMENT_AUTO_CONFIRM?: "true" | "false";
+    RENDER_EXTERNAL_URL?: string;
+    API_PUBLIC_URL?: string;
+    GOOGLE_CLIENT_ID?: string;
+    GOOGLE_CLIENT_SECRET?: string;
+    GOOGLE_REDIRECT_URI?: string;
+    LINKEDIN_REDIRECT_URI?: string;
   }
 }

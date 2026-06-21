@@ -39,6 +39,7 @@ import axios from "axios";
 import {
   decodeOAuthState,
   encodeOAuthState,
+  getOAuthDebugInfo,
   resolveOAuthCallbackUrl,
   resolveOAuthReturnUrl,
 } from "../../utils/oauth-redirect";
@@ -381,11 +382,21 @@ class AuthController {
     }
   };
 
+  public oauthDebug = async (req: Request, res: Response) => {
+    res.status(200).json({
+      success: true,
+      ...getOAuthDebugInfo(req),
+      googleConsoleHelp:
+        "Add googleCallbackUrl exactly to Google Cloud Console → OAuth client → Authorized redirect URIs",
+    });
+  };
+
   public google = async (req: Request, res: Response, _next: NextFunction) => {
     const scope = encodeURIComponent("openid email profile");
     const returnUrl = resolveOAuthReturnUrl(req);
     const state = encodeOAuthState(returnUrl);
     const redirectUri = resolveOAuthCallbackUrl(req, "google");
+    console.log(`[google-oauth] redirect_uri=${redirectUri}`);
 
     const url =
       `https://accounts.google.com/o/oauth2/v2/auth?` +
