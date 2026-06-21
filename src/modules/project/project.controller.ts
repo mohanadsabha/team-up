@@ -487,27 +487,6 @@ class ProjectController {
           throw new AppError("Paid ideas are currently stopped.", 400);
         }
       }
-      if (
-        payload.universityId &&
-        payload.universityId !== creator.universityId
-      ) {
-        throw new AppError(
-          "Project university must match your university.",
-          400,
-        );
-      }
-      if (payload.collegeId && payload.collegeId !== creator.collegeId) {
-        throw new AppError("Project college must match your college.", 400);
-      }
-      if (
-        payload.departmentId &&
-        payload.departmentId !== creator.departmentId
-      ) {
-        throw new AppError(
-          "Project department must match your department.",
-          400,
-        );
-      }
     }
 
     const project = await prisma.$transaction(async (tx) => {
@@ -519,19 +498,9 @@ class ProjectController {
           ideaType: payload.ideaType,
           price: payload.price,
           createdById: req.user.userId,
-          // Enforce using creator's values unless SYSTEM_ADMIN provided and matched above
-          universityId:
-            req.user.role === "SYSTEM_ADMIN"
-              ? payload.universityId
-              : creator.universityId,
-          collegeId:
-            req.user.role === "SYSTEM_ADMIN"
-              ? payload.collegeId
-              : creator.collegeId,
-          departmentId:
-            req.user.role === "SYSTEM_ADMIN"
-              ? payload.departmentId
-              : creator.departmentId,
+          universityId: payload.universityId ?? creator.universityId,
+          collegeId: payload.collegeId ?? creator.collegeId,
+          departmentId: payload.departmentId ?? creator.departmentId,
           technologies: payload.technologies,
           requiredSkills: payload.requiredSkills,
         },
@@ -609,38 +578,6 @@ class ProjectController {
     }
 
     await this.canManageProject(params.id, req.user.userId, req.user.role);
-
-    // Validate university/college/department when updating (non-admins)
-    if (req.user.role !== "SYSTEM_ADMIN") {
-      const updater = await prisma.user.findUnique({
-        where: { id: req.user.userId },
-        select: { universityId: true, collegeId: true, departmentId: true },
-      });
-      if (!updater) {
-        throw new AppError("Updating user not found.", 404);
-      }
-      if (
-        p.universityId !== undefined &&
-        p.universityId !== updater.universityId
-      ) {
-        throw new AppError(
-          "Project university must match your university.",
-          400,
-        );
-      }
-      if (p.collegeId !== undefined && p.collegeId !== updater.collegeId) {
-        throw new AppError("Project college must match your college.", 400);
-      }
-      if (
-        p.departmentId !== undefined &&
-        p.departmentId !== updater.departmentId
-      ) {
-        throw new AppError(
-          "Project department must match your department.",
-          400,
-        );
-      }
-    }
 
     const project = await prisma.$transaction(async (tx) => {
       const updatedProject = await tx.graduationProject.update({
