@@ -1,7 +1,6 @@
 import nodemailer from "nodemailer";
 import pug from "pug";
 import { convert } from "html-to-text";
-import fs from "fs";
 import path from "path";
 
 interface ContactFormData {
@@ -29,65 +28,27 @@ class Email {
   private from?: string;
   private to?: string;
   private name?: string;
-  private transporter: nodemailer.Transporter | null = null;
-
-  private resolveTemplatePath(template: string) {
-    const candidates = [
-      path.join(__dirname, `../templates/${template}.pug`),
-      path.join(process.cwd(), "src/templates", `${template}.pug`),
-      path.join(process.cwd(), "dist/templates", `${template}.pug`),
-    ];
-
-    const templatePath = candidates.find((candidate) => fs.existsSync(candidate));
-    if (!templatePath) {
-      throw new Error(`Email template not found: ${template}.pug`);
-    }
-
-    return templatePath;
-  }
 
   private createTransporter() {
-    const missing = [
-      !process.env.EMAIL_HOST && "EMAIL_HOST",
-      !process.env.EMAIL_PORT && "EMAIL_PORT",
-      !process.env.EMAIL_USERNAME && "EMAIL_USERNAME",
-      !process.env.EMAIL_PASSWORD && "EMAIL_PASSWORD",
-      !process.env.EMAIL && "EMAIL",
-    ].filter(Boolean);
-
-    if (missing.length) {
-      throw new Error(
-        `Missing email environment variables: ${missing.join(", ")}`,
+    if (
+      !process.env.EMAIL_HOST ||
+      !process.env.EMAIL_USERNAME ||
+      !process.env.EMAIL_PASSWORD
+    ) {
+      console.error(
+        "Missing email environment variables. Please check EMAIL_HOST, EMAIL_USERNAME, EMAIL_PASSWORD.",
       );
     }
 
-    const port = parseInt(process.env.EMAIL_PORT, 10);
-
     return nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
-      port,
-      secure: port === 465,
-      requireTLS: port === 587,
+      port: parseInt(process.env.EMAIL_PORT, 10),
+      secure: process.env.EMAIL_PORT === "465",
       auth: {
         user: process.env.EMAIL_USERNAME,
         pass: process.env.EMAIL_PASSWORD,
       },
-      connectionTimeout: 8_000,
-      greetingTimeout: 8_000,
-      socketTimeout: 10_000,
     });
-  }
-
-  private getTransporter() {
-    if (!this.transporter) {
-      this.transporter = this.createTransporter();
-    }
-
-    return this.transporter;
-  }
-
-  private formatFromAddress() {
-    return `"TeamUp" <${process.env.EMAIL}>`;
   }
 
   async send(
@@ -95,12 +56,15 @@ class Email {
     subject: string,
     templateData?: Record<string, any>,
   ) {
-    const html = pug.renderFile(this.resolveTemplatePath(template), {
-      name: this.name || "",
-      email: this.from,
-      subject,
-      ...templateData,
-    });
+    const html = pug.renderFile(
+      path.join(__dirname, `../templates/${template}.pug`),
+      {
+        name: this.name || "",
+        email: this.from,
+        subject,
+        ...templateData,
+      },
+    );
 
     const mailOptions = {
       from: this.from,
@@ -112,10 +76,7 @@ class Email {
       }),
     };
 
-    const info = await this.getTransporter().sendMail(mailOptions);
-    console.log(
-      `Email "${subject}" accepted by SMTP for ${this.to} (${info.messageId ?? "no-id"})`,
-    );
+    await this.createTransporter().sendMail(mailOptions);
   }
 
   async sendContactToAdmin(contactData: ContactFormData) {
@@ -132,7 +93,7 @@ class Email {
   }
 
   async sendPasswordReset(data: ResetPasswordEmailData) {
-    this.from = this.formatFromAddress();
+    this.from = process.env.EMAIL;
     this.to = data.to;
     this.name = data.name;
     await this.send("resetPassword", "Reset your password", {
@@ -141,7 +102,7 @@ class Email {
   }
 
   async sendEmailVerification(data: VerifyEmailData) {
-    this.from = this.formatFromAddress();
+    this.from = process.env.EMAIL;
     this.to = data.to;
     this.name = data.name;
     await this.send("verifyEmail", "Verify your email address", {
