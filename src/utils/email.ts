@@ -30,13 +30,17 @@ class Email {
   private name?: string;
 
   private createTransporter() {
-    if (
-      !process.env.EMAIL_HOST ||
-      !process.env.EMAIL_USERNAME ||
-      !process.env.EMAIL_PASSWORD
-    ) {
-      console.error(
-        "Missing email environment variables. Please check EMAIL_HOST, EMAIL_USERNAME, EMAIL_PASSWORD.",
+    const missing = [
+      !process.env.EMAIL_HOST && "EMAIL_HOST",
+      !process.env.EMAIL_PORT && "EMAIL_PORT",
+      !process.env.EMAIL_USERNAME && "EMAIL_USERNAME",
+      !process.env.EMAIL_PASSWORD && "EMAIL_PASSWORD",
+      !process.env.EMAIL && "EMAIL",
+    ].filter(Boolean);
+
+    if (missing.length) {
+      throw new Error(
+        `Missing email environment variables: ${missing.join(", ")}`,
       );
     }
 
