@@ -249,8 +249,6 @@ class AuthController {
       },
     });
 
-    await this.sendUserVerificationEmail(user);
-
     const message = requireUserApproval
       ? "Account created successfully. We sent a verification email to your inbox. After you verify your email, an admin will need to approve your account before you can log in."
       : "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in.";
@@ -260,7 +258,28 @@ class AuthController {
       message,
       user: this.sanitizeUser(user),
     });
+
+    this.queueVerificationEmail(user);
   };
+
+  private queueVerificationEmail(user: {
+    id: string;
+    email: string;
+    firstName: string | null;
+  }) {
+    setImmediate(() => {
+      void this.sendUserVerificationEmail(user)
+        .then(() => {
+          console.log(`Verification email sent to ${user.email}`);
+        })
+        .catch((error) => {
+          console.error(
+            `Failed to send verification email to ${user.email}:`,
+            error,
+          );
+        });
+    });
+  }
 
   public login = async (
     req: Request<StringObject, StringObject, Login>,
