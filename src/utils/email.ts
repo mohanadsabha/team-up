@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import pug from "pug";
 import { convert } from "html-to-text";
+import fs from "fs";
 import path from "path";
 
 interface ContactFormData {
@@ -28,27 +29,58 @@ class Email {
   private from?: string;
   private to?: string;
   private name?: string;
+  private transporter: nodemailer.Transporter | null = null;
+
+  private resolveTemplatePath(template: string) {
+    const candidates = [
+      path.join(__dirname, `../templates/${template}.pug`),
+      path.join(process.cwd(), "src/templates", `${template}.pug`),
+      path.join(process.cwd(), "dist/templates", `${template}.pug`),
+    ];
+
+    const templatePath = candidates.find((candidate) => fs.existsSync(candidate));
+    if (!templatePath) {
+      throw new Error(`Email template not found: ${template}.pug`);
+    }
+
+    return templatePath;
+  }
 
   private createTransporter() {
     if (
       !process.env.EMAIL_HOST ||
       !process.env.EMAIL_USERNAME ||
-      !process.env.EMAIL_PASSWORD
+      !process.env.EMAIL_PASSWORD ||
+      !process.env.EMAIL
     ) {
-      console.error(
-        "Missing email environment variables. Please check EMAIL_HOST, EMAIL_USERNAME, EMAIL_PASSWORD.",
+      throw new Error(
+        "Missing email configuration. Set EMAIL_HOST, EMAIL_PORT, EMAIL_USERNAME, EMAIL_PASSWORD, and EMAIL.",
       );
     }
 
+    const port = parseInt(process.env.EMAIL_PORT ?? "587", 10);
+
     return nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT, 10),
-      secure: process.env.EMAIL_PORT === "465",
+      port,
+      secure: port === 465,
+      requireTLS: port === 587,
       auth: {
         user: process.env.EMAIL_USERNAME,
         pass: process.env.EMAIL_PASSWORD,
       },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 12_000,
     });
+  }
+
+  private getTransporter() {
+    if (!this.transporter) {
+      this.transporter = this.createTransporter();
+    }
+
+    return this.transporter;
   }
 
   async send(
@@ -56,17 +88,14 @@ class Email {
     subject: string,
     templateData?: Record<string, any>,
   ) {
-    const html = pug.renderFile(
-      path.join(__dirname, `../templates/${template}.pug`),
-      {
-        name: this.name || "",
-        email: this.from,
-        subject,
-        ...templateData,
-      },
-    );
+    const html = pug.renderFile(this.resolveTemplatePath(template), {
+      name: this.name || "",
+      email: this.from,
+      subject,
+      ...templateData,
+    });
 
-    const mailOptions = {
+    const info = await this.getTransporter().sendMail({
       from: this.from,
       to: this.to,
       subject,
@@ -74,9 +103,11 @@ class Email {
       text: convert(html, {
         wordwrap: 130,
       }),
-    };
+    });
 
-    await this.createTransporter().sendMail(mailOptions);
+    console.log(
+      `Email "${subject}" accepted for ${this.to} (${info.messageId ?? "no-id"})`,
+    );
   }
 
   async sendContactToAdmin(contactData: ContactFormData) {
