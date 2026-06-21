@@ -208,17 +208,18 @@ class AuthController {
       );
     }
 
-    const { normalizedSkills } = await this.resolveSignupAffiliation({
-      departmentId: payload.departmentId,
-      collegeId: payload.collegeId,
-      universityId: payload.universityId,
-      skills: payload.skills,
-    });
-
-    const passwordHash = await hash(payload.password, 12);
+    const [{ normalizedSkills }, passwordHash, settings] = await Promise.all([
+      this.resolveSignupAffiliation({
+        departmentId: payload.departmentId,
+        collegeId: payload.collegeId,
+        universityId: payload.universityId,
+        skills: payload.skills,
+      }),
+      hash(payload.password, 12),
+      prisma.platformSettings.findFirst(),
+    ]);
     const now = new Date();
 
-    const settings = await prisma.platformSettings.findFirst();
     const requireUserApproval = settings?.requireUserApproval ?? false;
 
     const user = await prisma.user.create({
@@ -248,7 +249,9 @@ class AuthController {
       },
     });
 
-    await this.sendUserVerificationEmail(user);
+    void this.sendUserVerificationEmail(user).catch((error) => {
+      console.error("Failed to send verification email:", error);
+    });
 
     const message = requireUserApproval
       ? "Account created successfully. We sent a verification email to your inbox. After you verify your email, an admin will need to approve your account before you can log in."
