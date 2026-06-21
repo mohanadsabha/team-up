@@ -7,3 +7,11 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: FRONTEND_URL
+        value: https://team-up-website-front.vercel.app
+      - key: API_PUBLIC_URL
+        value: https://team-up-xisr.onrender.com
+      - key: GOOGLE_REDIRECT_URI
+        value: https://team-up-xisr.onrender.com/api/v1/auth/google/callback
+      - key: LINKEDIN_REDIRECT_URI
+        value: https://team-up-xisr.onrender.com/api/v1/auth/linkedin/callback

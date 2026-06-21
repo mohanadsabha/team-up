@@ -96,6 +96,24 @@ app.use("/api/v1/notification-settings", notificationSettingsRoutes);
 app.use("/api/v1/admin/settings", settingsRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 
+// OAuth aliases when API base URL is missing /api/v1
+app.get("/auth/google", (req: Request, res: Response) => {
+  const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(307, `/api/v1/auth/google${query}`);
+});
+app.get("/auth/google/callback", (req: Request, res: Response) => {
+  const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(307, `/api/v1/auth/google/callback${query}`);
+});
+app.get("/auth/linkedin", (req: Request, res: Response) => {
+  const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(307, `/api/v1/auth/linkedin${query}`);
+});
+app.get("/auth/linkedin/callback", (req: Request, res: Response) => {
+  const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(307, `/api/v1/auth/linkedin/callback${query}`);
+});
+
 // Unhandled routes
 app.use((req: Request, res: Response, next: NextFunction) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server`, 404));

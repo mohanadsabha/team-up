@@ -8,6 +8,7 @@ const router = Router();
 router.post("/dev/system-admin", authController.createDevSystemAdmin);
 router.post("/signup", authController.signUp);
 router.post("/login", authController.login);
+router.get("/oauth/debug", authController.oauthDebug);
 router.get("/linkedin/callback", authController.linkedinCallback);
 router.get("/linkedin", authController.linkedin);
 router.get("/google/callback", authController.googleCallback);

@@ -2,6 +2,7 @@ import { Request } from "express";
 
 const DEFAULT_FRONTEND_URL = "http://localhost:3000";
 const PRODUCTION_FRONTEND_URL = "https://team-up-website-front.vercel.app";
+const PRODUCTION_API_URL = "https://team-up-xisr.onrender.com";
 
 type OAuthStatePayload = {
   returnUrl: string;
@@ -124,6 +125,12 @@ const getRequestOrigin = (req: Request) => {
   return `${protocol}://${host}`;
 };
 
+const isLocalHost = (host: string) =>
+  host.startsWith("localhost") || host.startsWith("127.0.0.1");
+
+const buildCallbackUrl = (origin: string, provider: OAuthProvider) =>
+  `${origin.replace(/\/$/, "")}/api/v1/auth/${provider}/callback`;
+
 export const resolveOAuthCallbackUrl = (
   req: Request,
   provider: OAuthProvider,
@@ -134,16 +141,49 @@ export const resolveOAuthCallbackUrl = (
   const requestOrigin = getRequestOrigin(req);
 
   if (requestOrigin) {
-    const { host } = new URL(requestOrigin);
-    const isLocal =
-      host.startsWith("localhost") || host.startsWith("127.0.0.1");
-
-    if (!isLocal) {
-      return `${requestOrigin}/api/v1/auth/${provider}/callback`;
+    try {
+      const { host } = new URL(requestOrigin);
+      if (!isLocalHost(host)) {
+        return buildCallbackUrl(requestOrigin, provider);
+      }
+    } catch {
+      // Ignore malformed request origin.
     }
+  }
+
+  const renderExternalUrl = process.env.RENDER_EXTERNAL_URL?.trim();
+  if (renderExternalUrl) {
+    return buildCallbackUrl(normalizeOrigin(renderExternalUrl), provider);
+  }
+
+  const apiPublicUrl =
+    process.env.API_PUBLIC_URL?.trim() ??
+    (process.env.NODE_ENV === "production" ? PRODUCTION_API_URL : "");
+  if (apiPublicUrl) {
+    return buildCallbackUrl(normalizeOrigin(apiPublicUrl), provider);
+  }
+
+  if (configured && !configured.includes("localhost")) {
+    return configured;
+  }
+
+  if (process.env.NODE_ENV === "production" && configured) {
+    console.warn(
+      `[oauth] ${envKey} points to localhost in production. Update env or Google Console.`,
+    );
   }
 
   return (
     configured ?? `http://localhost:3001/api/v1/auth/${provider}/callback`
   );
 };
+
+export const getOAuthDebugInfo = (req: Request) => ({
+  googleCallbackUrl: resolveOAuthCallbackUrl(req, "google"),
+  linkedinCallbackUrl: resolveOAuthCallbackUrl(req, "linkedin"),
+  requestOrigin: getRequestOrigin(req),
+  renderExternalUrl: process.env.RENDER_EXTERNAL_URL ?? null,
+  apiPublicUrl: process.env.API_PUBLIC_URL ?? PRODUCTION_API_URL,
+  configuredGoogleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? null,
+  configuredLinkedinRedirectUri: process.env.LINKEDIN_REDIRECT_URI ?? null,
+});
