@@ -33,12 +33,14 @@ class Email {
     if (
       !process.env.EMAIL_HOST ||
       !process.env.EMAIL_USERNAME ||
-      !process.env.EMAIL_PASSWORD
+      !process.env.EMAIL_PASSWORD ||
+      !process.env.EMAIL
     ) {
-      console.error(
-        "Missing email environment variables. Please check EMAIL_HOST, EMAIL_USERNAME, EMAIL_PASSWORD.",
+      throw new Error(
+        "Missing email environment variables. Please check EMAIL, EMAIL_HOST, EMAIL_USERNAME, and EMAIL_PASSWORD.",
       );
     }
+
     return nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: parseInt(process.env.EMAIL_PORT, 10),
