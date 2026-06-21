@@ -73,7 +73,7 @@ export async function processTaskDueReminders(now = new Date()) {
         where: { userId: task.assignedTo },
         select: { taskDeadlineReminders: true },
       });
-      if (taskNotification.taskDeadlineReminders) {
+      if (taskNotification?.taskDeadlineReminders) {
         await notificationController.createNotification({
           userId: task.assignedTo,
           type: "TASK_DUE_SOON",

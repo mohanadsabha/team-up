@@ -241,6 +241,9 @@ class AuthController {
             skills: normalizedSkills,
           },
         },
+        notificationSettings: {
+          create: {},
+        },
         lastLogin: now,
       },
     });

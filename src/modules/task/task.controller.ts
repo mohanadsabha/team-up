@@ -205,7 +205,7 @@ class TaskController {
         where: { userId: task.assignedTo },
         select: { taskStatus: true },
       });
-      if (taskNotification.taskStatus) {
+      if (taskNotification?.taskStatus) {
         await notificationController.createNotification({
           userId: task.assignedTo,
           type: "TASK_ASSIGNED",
@@ -335,7 +335,7 @@ class TaskController {
         where: { userId: updatedTask.assignedTo },
         select: { taskStatus: true },
       });
-      if (taskNotification.taskStatus) {
+      if (taskNotification?.taskStatus) {
         await notificationController.createNotification({
           userId: updatedTask.assignedTo,
           type: "TASK_ASSIGNED",
@@ -354,7 +354,7 @@ class TaskController {
         where: { userId: updatedTask.assignedTo },
         select: { taskStatus: true },
       });
-      if (taskNotification.taskStatus) {
+      if (taskNotification?.taskStatus) {
         await notificationController.createNotification({
           userId: updatedTask.assignedTo,
           type: "TASK_UPDATED",
