@@ -62,14 +62,12 @@ async function main() {
   console.log(`PASS signup + email completed in ${signupMs}ms`);
   console.log(`Message: ${signupBody.message}`);
 
-  if (signupMs > 15_000) {
-    throw new Error(`Signup too slow: ${signupMs}ms (expected under 15s)`);
+  if (signupMs > 8_000) {
+    throw new Error(`Signup too slow: ${signupMs}ms (expected under 8s)`);
   }
 
-  if (signupMs < 1500) {
-    console.warn(
-      "WARN: signup was very fast — email may not have been awaited. Check backend logs.",
-    );
+  if (signupMs < 8_000) {
+    console.log("PASS fast signup response (email sends after response)");
   }
 
   console.log("Check backend logs for: Verification email sent to ...");
