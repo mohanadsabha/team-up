@@ -48,6 +48,7 @@ class InstitutionController {
 
     const universities = await prisma.university.findMany({
       where: {
+        isActive: typeof query.isActive === "boolean" ? query.isActive : true,
         ...(query.search
           ? {
               OR: [
@@ -55,9 +56,6 @@ class InstitutionController {
                 { code: { contains: query.search, mode: "insensitive" } },
               ],
             }
-          : {}),
-        ...(typeof query.isActive === "boolean"
-          ? { isActive: query.isActive }
           : {}),
       },
       orderBy: { name: "asc" },

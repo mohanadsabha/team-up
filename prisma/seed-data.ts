@@ -1,18 +1,7 @@
 export const SEED_PASSWORD = "TeamUp2026!";
 
 export const GAZA_UNIVERSITIES = [
-  { name: "Islamic University of Gaza", code: "IUG", country: "Palestine" },
   { name: "Al-Azhar University - Gaza", code: "AUG", country: "Palestine" },
-  { name: "Al-Aqsa University", code: "AAQ", country: "Palestine" },
-  { name: "University College of Applied Sciences (UCAS)", code: "UCAS", country: "Palestine" },
-  { name: "Gaza University", code: "GU", country: "Palestine" },
-  { name: "Palestine Technical College - Deir al-Balah", code: "PTC", country: "Palestine" },
-  { name: "Al-Quds Open University - Gaza Branch", code: "QOU", country: "Palestine" },
-  { name: "Palestine University - Gaza", code: "PUG", country: "Palestine" },
-  { name: "Israa University", code: "ISRA", country: "Palestine" },
-  { name: "University of Palestine", code: "UOP", country: "Palestine" },
-  { name: "American University of Gaza", code: "AUGZ", country: "Palestine" },
-  { name: "University of Science and Technology - Gaza", code: "UST", country: "Palestine" },
 ] as const;
 
 export type SeedUserSpec = {

@@ -49,6 +49,7 @@ const wipeDatabase = async () => {
   await prisma.user.deleteMany();
   await prisma.department.deleteMany();
   await prisma.college.deleteMany();
+  await prisma.university.deleteMany();
   await prisma.platformSettings.deleteMany();
 
   console.log("Database wiped.");
@@ -72,25 +73,48 @@ const seedUniversities = async () => {
     });
   }
 
-  const iug = await prisma.university.findUniqueOrThrow({ where: { code: "IUG" } });
+  await prisma.university.updateMany({
+    where: { code: { notIn: GAZA_UNIVERSITIES.map((university) => university.code) } },
+    data: { isActive: false },
+  });
 
-  const college = await prisma.college.create({
-    data: {
+  const alAzhar = await prisma.university.findUniqueOrThrow({ where: { code: "AUG" } });
+
+  const college = await prisma.college.upsert({
+    where: {
+      universityId_code: {
+        universityId: alAzhar.id,
+        code: "FIT",
+      },
+    },
+    update: {
+      name: "Faculty of Information Technology",
+    },
+    create: {
       name: "Faculty of Information Technology",
       code: "FIT",
-      universityId: iug.id,
+      universityId: alAzhar.id,
     },
   });
 
-  const department = await prisma.department.create({
-    data: {
+  const department = await prisma.department.upsert({
+    where: {
+      collegeId_code: {
+        collegeId: college.id,
+        code: "CS",
+      },
+    },
+    update: {
+      name: "Computer Science",
+    },
+    create: {
       name: "Computer Science",
       code: "CS",
       collegeId: college.id,
     },
   });
 
-  return { university: iug, college, department };
+  return { university: alAzhar, college, department };
 };
 
 const createSeedUser = async (
