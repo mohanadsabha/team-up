@@ -245,16 +245,7 @@ class AuthController {
       },
     });
 
-    try {
-      await this.sendUserVerificationEmail(user);
-    } catch (error) {
-      await prisma.user.delete({ where: { id: user.id } });
-      console.error("Failed to send verification email:", error);
-      throw new AppError(
-        "We could not send the verification email. Please try again later or contact support.",
-        500,
-      );
-    }
+    await this.sendUserVerificationEmail(user);
 
     const message = requireUserApproval
       ? "Account created successfully. We sent a verification email to your inbox. After you verify your email, an admin will need to approve your account before you can log in."
