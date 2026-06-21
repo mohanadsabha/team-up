@@ -168,6 +168,99 @@ class ProjectController {
     return true;
   };
 
+  private async hasWorkspaceProjectAccess(
+    projectId: string,
+    userId: string,
+    role: string,
+  ) {
+    if (role === "SYSTEM_ADMIN") {
+      return { isOwner: false, hasTeamAccess: true };
+    }
+
+    const project = await prisma.graduationProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, createdById: true, isPublished: true, ideaType: true },
+    });
+
+    if (!project) {
+      return null;
+    }
+
+    const isOwner = project.createdById === userId;
+
+    const linkedTeam = await prisma.team.findFirst({
+      where: {
+        projectId: project.id,
+        OR: [
+          { mentorId: userId, mentorApproved: true },
+          {
+            members: {
+              some: {
+                userId,
+                status: "APPROVED",
+              },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    return {
+      project,
+      isOwner,
+      hasTeamAccess: Boolean(linkedTeam),
+    };
+  }
+
+  private canManageProjectFiles = async (
+    projectId: string,
+    userId: string,
+    role: string,
+  ) => {
+    if (role === "SYSTEM_ADMIN") {
+      return true;
+    }
+
+    const access = await this.hasWorkspaceProjectAccess(projectId, userId, role);
+
+    if (!access) {
+      throw new AppError("Project not found.", 404);
+    }
+
+    if (access.isOwner) {
+      return true;
+    }
+
+    const canManageTeamFiles = await prisma.team.findFirst({
+      where: {
+        projectId,
+        OR: [
+          { mentorId: userId, mentorApproved: true },
+          {
+            members: {
+              some: {
+                userId,
+                status: "APPROVED",
+                role: "TEAM_ADMIN",
+              },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (!canManageTeamFiles) {
+      throw new AppError(
+        "You do not have permission to manage project files.",
+        403,
+      );
+    }
+
+    return true;
+  };
+
   public getProjects = async (
     req: Request<StringObject, StringObject, StringObject, GetProjectsQuery>,
     res: Response<ProjectsListResponse>,
@@ -976,7 +1069,7 @@ class ProjectController {
     const params = zodValidation(idParamSchema, req.params);
     const payload = zodValidation(addProjectFileSchema, req.body);
 
-    await this.canManageProject(params.id, req.user.userId, req.user.role);
+    await this.canManageProjectFiles(params.id, req.user.userId, req.user.role);
 
     const file = await prisma.projectFile.create({
       data: {
@@ -1002,34 +1095,46 @@ class ProjectController {
     _next: NextFunction,
   ) => {
     const params = zodValidation(idParamSchema, req.params);
+    const isAdmin = req.user?.role === "SYSTEM_ADMIN";
+    const userId = req.user?.userId;
 
-    const project = await prisma.graduationProject.findFirst({
-      where: { id: params.id, isPublished: true },
-      select: { id: true, ideaType: true, createdById: true },
-    });
+    const access = userId
+      ? await this.hasWorkspaceProjectAccess(params.id, userId, req.user.role)
+      : null;
+
+    const project = access?.project
+      ?? (await prisma.graduationProject.findUnique({
+        where: { id: params.id },
+        select: { id: true, ideaType: true, createdById: true, isPublished: true },
+      }));
 
     if (!project) {
       throw new AppError("Project not found.", 404);
     }
 
-    if (project.ideaType === "PAID") {
-      const isOwner = req.user?.userId === project.createdById;
-      const isAdmin = req.user?.role === "SYSTEM_ADMIN";
-      let hasAccess = false;
+    const isOwner = userId === project.createdById;
+    const hasTeamAccess = access?.hasTeamAccess ?? false;
 
-      if (req.user?.userId) {
+    if (!isAdmin && !isOwner && !hasTeamAccess && !project.isPublished) {
+      throw new AppError("Project not found.", 404);
+    }
+
+    if (project.ideaType === "PAID") {
+      let hasPaidAccess = false;
+
+      if (userId) {
         const successfulPayment = await prisma.payment.findFirst({
           where: {
             projectId: project.id,
-            buyerId: req.user.userId,
+            buyerId: userId,
             status: "SUCCESS",
           },
           select: { id: true },
         });
-        hasAccess = !!successfulPayment;
+        hasPaidAccess = Boolean(successfulPayment);
       }
 
-      if (!isOwner && !isAdmin && !hasAccess) {
+      if (!isOwner && !isAdmin && !hasTeamAccess && !hasPaidAccess) {
         throw new AppError(
           "You need to purchase this project to access its files.",
           403,
@@ -1057,7 +1162,7 @@ class ProjectController {
   ) => {
     const params = zodValidation(fileParamSchema, req.params);
 
-    await this.canManageProject(params.id, req.user.userId, req.user.role);
+    await this.canManageProjectFiles(params.id, req.user.userId, req.user.role);
 
     const file = await prisma.projectFile.findFirst({
       where: { id: params.fileId, projectId: params.id },
