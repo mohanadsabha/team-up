@@ -256,11 +256,18 @@ class AuthController {
       },
     });
 
-    let verificationEmailSent = false;
+    const message = requireUserApproval
+      ? "Account created successfully. We sent a verification email to your inbox. After you verify your email, an admin will need to approve your account before you can log in."
+      : "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in.";
+
+    res.status(201).json({
+      success: true,
+      message,
+      user: this.sanitizeUser(user),
+    });
 
     try {
       await this.sendUserVerificationEmail(user);
-      verificationEmailSent = true;
       console.log(`Verification email sent to ${user.email}`);
     } catch (error) {
       console.error(
@@ -268,19 +275,6 @@ class AuthController {
         error,
       );
     }
-
-    const message = requireUserApproval
-      ? "Account created successfully. We sent a verification email to your inbox. After you verify your email, an admin will need to approve your account before you can log in."
-      : verificationEmailSent
-        ? "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in."
-        : "Account created successfully. Verification email could not be sent. Please contact support or try again later.";
-
-    res.status(201).json({
-      success: true,
-      message,
-      user: this.sanitizeUser(user),
-      verificationEmailSent,
-    });
   };
 
   public login = async (

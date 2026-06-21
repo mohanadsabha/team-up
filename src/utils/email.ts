@@ -69,9 +69,9 @@ class Email {
         user: process.env.EMAIL_USERNAME,
         pass: process.env.EMAIL_PASSWORD,
       },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 12_000,
+      connectionTimeout: 8_000,
+      greetingTimeout: 8_000,
+      socketTimeout: 8_000,
     });
   }
 
