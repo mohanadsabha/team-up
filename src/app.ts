@@ -23,6 +23,7 @@ import meetingRoutes from "./modules/meeting/meeting.route";
 import joinRequestRoutes from "./modules/join-request/join-request.route";
 import settingsRoutes from "./modules/admin/settings/settings.route";
 import { paymentController } from "./modules/payment/payment.controller";
+import { getEmailConfigurationStatus } from "./utils/email-config";
 
 type RawWebhookRequest = Request & { rawBody?: Buffer };
 
@@ -74,9 +75,12 @@ app.use(compression());
 
 // Routes
 app.use("/api/health", (req: Request, res: Response) => {
+  const email = getEmailConfigurationStatus();
   res.status(200).json({
     status: "success",
     message: "Server is healthy",
+    emailConfigured: email.configured,
+    emailMissingEnv: email.missing,
   });
 });
 app.use("/api/v1/auth", authRoutes);
