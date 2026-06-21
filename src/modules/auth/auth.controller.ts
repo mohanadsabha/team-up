@@ -256,18 +256,11 @@ class AuthController {
       },
     });
 
-    const message = requireUserApproval
-      ? "Account created successfully. We sent a verification email to your inbox. After you verify your email, an admin will need to approve your account before you can log in."
-      : "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in.";
-
-    res.status(201).json({
-      success: true,
-      message,
-      user: this.sanitizeUser(user),
-    });
+    let verificationEmailSent = false;
 
     try {
       await this.sendUserVerificationEmail(user);
+      verificationEmailSent = true;
       console.log(`Verification email sent to ${user.email}`);
     } catch (error) {
       console.error(
@@ -275,6 +268,19 @@ class AuthController {
         error,
       );
     }
+
+    const message = requireUserApproval
+      ? "Account created successfully. We sent a verification email to your inbox. After you verify your email, an admin will need to approve your account before you can log in."
+      : verificationEmailSent
+        ? "Account created successfully. We sent a verification email to your inbox. Please check your email and verify your account before logging in."
+        : "Account created successfully. Verification email could not be sent. Please try again in a few minutes or contact support.";
+
+    res.status(201).json({
+      success: true,
+      message,
+      user: this.sanitizeUser(user),
+      verificationEmailSent,
+    });
   };
 
   public login = async (
@@ -1169,6 +1175,14 @@ class AuthController {
     );
   };
 
+  private resolveFrontendUrl() {
+    return (
+      process.env.FRONTEND_URL?.trim() ||
+      process.env.FRONTEND_URL_WWW?.trim() ||
+      "https://team-up-website-front.vercel.app"
+    ).replace(/\/$/, "");
+  }
+
   private async sendUserVerificationEmail(user: {
     id: string;
     email: string;
@@ -1185,7 +1199,7 @@ class AuthController {
         expiresIn: "1d" as StringValue,
       },
     );
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${this.resolveFrontendUrl()}/verify-email?token=${verificationToken}`;
 
     await emailService.sendEmailVerification({
       to: user.email,
