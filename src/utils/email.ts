@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import pug from "pug";
 import { convert } from "html-to-text";
+import fs from "fs";
 import path from "path";
 
 interface ContactFormData {
@@ -29,6 +30,21 @@ class Email {
   private to?: string;
   private name?: string;
 
+  private resolveTemplatePath(template: string) {
+    const candidates = [
+      path.join(__dirname, `../templates/${template}.pug`),
+      path.join(process.cwd(), "src/templates", `${template}.pug`),
+      path.join(process.cwd(), "dist/templates", `${template}.pug`),
+    ];
+
+    const templatePath = candidates.find((candidate) => fs.existsSync(candidate));
+    if (!templatePath) {
+      throw new Error(`Email template not found: ${template}.pug`);
+    }
+
+    return templatePath;
+  }
+
   private createTransporter() {
     const missing = [
       !process.env.EMAIL_HOST && "EMAIL_HOST",
@@ -44,10 +60,13 @@ class Email {
       );
     }
 
+    const port = parseInt(process.env.EMAIL_PORT, 10);
+
     return nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT, 10),
-      secure: process.env.EMAIL_PORT === "465",
+      port,
+      secure: port === 465,
+      requireTLS: port === 587,
       auth: {
         user: process.env.EMAIL_USERNAME,
         pass: process.env.EMAIL_PASSWORD,
@@ -58,20 +77,21 @@ class Email {
     });
   }
 
+  private formatFromAddress() {
+    return `"TeamUp" <${process.env.EMAIL}>`;
+  }
+
   async send(
     template: string,
     subject: string,
     templateData?: Record<string, any>,
   ) {
-    const html = pug.renderFile(
-      path.join(__dirname, `../templates/${template}.pug`),
-      {
-        name: this.name || "",
-        email: this.from,
-        subject,
-        ...templateData,
-      },
-    );
+    const html = pug.renderFile(this.resolveTemplatePath(template), {
+      name: this.name || "",
+      email: this.from,
+      subject,
+      ...templateData,
+    });
 
     const mailOptions = {
       from: this.from,
@@ -83,7 +103,10 @@ class Email {
       }),
     };
 
-    await this.createTransporter().sendMail(mailOptions);
+    const info = await this.createTransporter().sendMail(mailOptions);
+    console.log(
+      `Email "${subject}" accepted by SMTP for ${this.to} (${info.messageId ?? "no-id"})`,
+    );
   }
 
   async sendContactToAdmin(contactData: ContactFormData) {
@@ -100,7 +123,7 @@ class Email {
   }
 
   async sendPasswordReset(data: ResetPasswordEmailData) {
-    this.from = process.env.EMAIL;
+    this.from = this.formatFromAddress();
     this.to = data.to;
     this.name = data.name;
     await this.send("resetPassword", "Reset your password", {
@@ -109,7 +132,7 @@ class Email {
   }
 
   async sendEmailVerification(data: VerifyEmailData) {
-    this.from = process.env.EMAIL;
+    this.from = this.formatFromAddress();
     this.to = data.to;
     this.name = data.name;
     await this.send("verifyEmail", "Verify your email address", {
