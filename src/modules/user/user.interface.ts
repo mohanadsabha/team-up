@@ -21,6 +21,7 @@ export const updateMeSchema = z
     universityId: z.string().trim().uuid().nullable().optional(),
     collegeId: z.string().trim().uuid().nullable().optional(),
     departmentId: z.string().trim().uuid().nullable().optional(),
+    role: z.enum(["STUDENT", "MENTOR", "GRADUATE"]).optional(),
   })
   .refine((payload) => Object.keys(payload).length > 0, {
     message: "At least one field is required.",
@@ -134,6 +135,7 @@ export type UserProfileResponse = MessageResponse & {
 
 export type SingleUserResponse = MessageResponse & {
   user: PrivateUserItem;
+  token?: string;
 };
 
 export type UsersListResponse = MessageResponse & {

@@ -22,6 +22,7 @@ import {
   PrivateUserItem,
 } from "./user.interface";
 import AppError from "../../utils/appError";
+import { signJWT } from "../../utils/jwt.util";
 import { prisma, Prisma } from "../../config/prisma";
 import { UserRole } from "../../generated/prisma/enums";
 import {
@@ -119,6 +120,22 @@ class UserController {
       }
     }
 
+    if (payload.role) {
+      if (currentUser.universityId) {
+        throw new AppError(
+          "Role can only be selected during initial profile setup.",
+          403,
+        );
+      }
+
+      if (currentUser.role === "SYSTEM_ADMIN" || currentUser.role === "TEAM_ADMIN") {
+        throw new AppError("This account role cannot be changed.", 403);
+      }
+    }
+
+    const roleChanged =
+      Boolean(payload.role) && payload.role !== currentUser.role;
+
     const updatedUser = await prisma.$transaction(async (tx) => {
       if (Object.keys(userPayload).length > 0) {
         await tx.user.update({
@@ -154,10 +171,15 @@ class UserController {
       throw new AppError("User not found.", 404);
     }
 
+    const token = roleChanged
+      ? signJWT({ userId: updatedUser.id, role: updatedUser.role })
+      : undefined;
+
     res.status(200).json({
       success: true,
       message: "User profile updated successfully.",
       user: this.sanitizePrivateUser(updatedUser),
+      ...(token ? { token } : {}),
     });
   };
 
