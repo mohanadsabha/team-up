@@ -14,6 +14,10 @@ import {
 } from "./mentor-invitation.interface";
 import { notificationController } from "../notification/notification.controller";
 
+const shouldSendMentorInvitationNotification = (
+  mentorInvitationStatus?: boolean | null,
+) => mentorInvitationStatus !== false;
+
 class MentorInvitationController {
   public inviteMentor = async (
     req: Request<IdParam, StringObject, InviteMentor>,
@@ -66,7 +70,11 @@ class MentorInvitationController {
 
     // Check if invitation already pending
     if (team.mentorId === payload.mentorId && !team.mentorApproved) {
-      throw new AppError("Mentor invitation already pending.", 409);
+      res.status(200).json({
+        success: true,
+        message: "Mentor invitation already pending.",
+      });
+      return;
     }
 
     // Send invitation
@@ -78,15 +86,23 @@ class MentorInvitationController {
       },
     });
 
-    // Send notification to mentor
-    if (mentor.notificationSettings.mentorInvitationStatus) {
-      await notificationController.createNotification({
-        userId: payload.mentorId,
-        type: "MENTOR_INVITATION_SENT",
-        title: `Mentorship Invitation from ${team.name}`,
-        content: `You have been invited to mentor the team "${team.name}". Accept or reject this invitation.`,
-        relatedEntityId: params.teamId,
-      });
+    // Send notification to mentor (default on when settings are missing)
+    if (
+      shouldSendMentorInvitationNotification(
+        mentor.notificationSettings?.mentorInvitationStatus,
+      )
+    ) {
+      try {
+        await notificationController.createNotification({
+          userId: payload.mentorId,
+          type: "MENTOR_INVITATION_SENT",
+          title: `Mentorship Invitation from ${team.name}`,
+          content: `You have been invited to mentor the team "${team.name}". Accept or reject this invitation.`,
+          relatedEntityId: params.teamId,
+        });
+      } catch (error) {
+        console.error("Failed to send mentor invitation notification:", error);
+      }
     }
 
     res.status(200).json({
@@ -219,14 +235,25 @@ class MentorInvitationController {
         where: { userId: teamCreator.userId },
         select: { mentorInvitationStatus: true },
       });
-      if (mentorNotiication.mentorInvitationStatus) {
-        await notificationController.createNotification({
-          userId: teamCreator.userId,
-          type: "MENTOR_INVITATION_ACCEPTED",
-          title: `Mentor Accepted Mentorship`,
-          content: `Your mentor invitation for team "${team.name}" has been accepted.`,
-          relatedEntityId: params.teamId,
-        });
+      if (
+        shouldSendMentorInvitationNotification(
+          mentorNotiication?.mentorInvitationStatus,
+        )
+      ) {
+        try {
+          await notificationController.createNotification({
+            userId: teamCreator.userId,
+            type: "MENTOR_INVITATION_ACCEPTED",
+            title: `Mentor Accepted Mentorship`,
+            content: `Your mentor invitation for team "${team.name}" has been accepted.`,
+            relatedEntityId: params.teamId,
+          });
+        } catch (error) {
+          console.error(
+            "Failed to send mentor invitation accepted notification:",
+            error,
+          );
+        }
       }
     }
 
@@ -292,14 +319,25 @@ class MentorInvitationController {
         where: { userId: teamCreator.userId },
         select: { mentorInvitationStatus: true },
       });
-      if (mentorNotiication.mentorInvitationStatus) {
-        await notificationController.createNotification({
-          userId: teamCreator.userId,
-          type: "MENTOR_INVITATION_REJECTED",
-          title: `Mentor Rejected Mentorship`,
-          content: `${mentorName} has rejected the mentorship invitation for team "${team.name}".`,
-          relatedEntityId: params.teamId,
-        });
+      if (
+        shouldSendMentorInvitationNotification(
+          mentorNotiication?.mentorInvitationStatus,
+        )
+      ) {
+        try {
+          await notificationController.createNotification({
+            userId: teamCreator.userId,
+            type: "MENTOR_INVITATION_REJECTED",
+            title: `Mentor Rejected Mentorship`,
+            content: `${mentorName} has rejected the mentorship invitation for team "${team.name}".`,
+            relatedEntityId: params.teamId,
+          });
+        } catch (error) {
+          console.error(
+            "Failed to send mentor invitation rejected notification:",
+            error,
+          );
+        }
       }
     }
 
