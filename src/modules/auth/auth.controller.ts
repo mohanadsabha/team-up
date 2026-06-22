@@ -1198,14 +1198,17 @@ class AuthController {
       `${options.given_name} ${options.family_name}`,
     );
     const email = encodeURIComponent(options.email);
-    const tokenParam = `token=${encodeURIComponent(token)}`;
     const common = `provider=${options.provider}&name=${name}&email=${email}`;
 
-    if (options.needsProfileCompletion) {
-      return `${frontendBaseUrl}/auth/oauth/complete-profile?${tokenParam}&${common}&firstTime=true`;
-    }
+    const destinationPath = options.needsProfileCompletion
+      ? `/auth/oauth/complete-profile?${common}&firstTime=true`
+      : `/auth/oauth/success?${common}&firstTime=false`;
 
-    return `${frontendBaseUrl}/auth/oauth/success?${tokenParam}&${common}&firstTime=false`;
+    const establishUrl = new URL("/api/auth/oauth/establish", frontendBaseUrl);
+    establishUrl.searchParams.set("token", token);
+    establishUrl.searchParams.set("next", destinationPath);
+
+    return establishUrl.toString();
   }
 
   private async sendUserVerificationEmail(user: {
