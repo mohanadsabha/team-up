@@ -470,8 +470,6 @@ class AuthController {
       where: { email: email },
     });
 
-    const isNewUser = !user;
-
     if (!user) {
       user = await prisma.user.create({
         // role, username, unvirsty....
@@ -491,8 +489,9 @@ class AuthController {
 
     // 4. Create JWT
     const token = signJWT({ userId: user.id, role: user.role });
+    const needsProfileCompletion = !user.universityId;
 
-    // 5. Redirect to frontend
+    // 5. Redirect to frontend (token in URL for cross-domain Vercel ↔ Render)
     res
       .cookie("accessToken", token, {
         httpOnly: true,
@@ -501,9 +500,13 @@ class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
       .redirect(
-        isNewUser
-          ? `${frontendBaseUrl}/auth/oauth/complete-profile?provider=linkedin&firstTime=true&name=${encodeURIComponent(`${given_name} ${family_name}`)}&email=${encodeURIComponent(email)}`
-          : `${frontendBaseUrl}/auth/oauth/success?provider=linkedin&firstTime=false&name=${encodeURIComponent(`${given_name} ${family_name}`)}&email=${encodeURIComponent(email)}`,
+        this.buildOAuthRedirectUrl(frontendBaseUrl, token, {
+          needsProfileCompletion,
+          provider: "linkedin",
+          given_name,
+          family_name,
+          email,
+        }),
       );
   };
 
@@ -546,8 +549,6 @@ class AuthController {
       where: { email: email },
     });
 
-    const isNewUser = !user;
-
     if (!user) {
       user = await prisma.user.create({
         // role, username, unvirsty....
@@ -567,8 +568,9 @@ class AuthController {
 
     // 4. Create JWT
     const token = signJWT({ userId: user.id, role: user.role });
+    const needsProfileCompletion = !user.universityId;
 
-    // 5. Redirect to frontend
+    // 5. Redirect to frontend (token in URL for cross-domain Vercel ↔ Render)
     res
       .cookie("accessToken", token, {
         httpOnly: true,
@@ -577,9 +579,13 @@ class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
       .redirect(
-        isNewUser
-          ? `${frontendBaseUrl}/auth/oauth/complete-profile?provider=google&firstTime=true&name=${encodeURIComponent(`${given_name} ${family_name}`)}&email=${encodeURIComponent(email)}`
-          : `${frontendBaseUrl}/auth/oauth/success?provider=google&firstTime=false&name=${encodeURIComponent(`${given_name} ${family_name}`)}&email=${encodeURIComponent(email)}`,
+        this.buildOAuthRedirectUrl(frontendBaseUrl, token, {
+          needsProfileCompletion,
+          provider: "google",
+          given_name,
+          family_name,
+          email,
+        }),
       );
   };
 
@@ -1175,6 +1181,31 @@ class AuthController {
       process.env.FRONTEND_URL_WWW?.trim() ||
       "https://team-up-website-front.vercel.app"
     ).replace(/\/$/, "");
+  }
+
+  private buildOAuthRedirectUrl(
+    frontendBaseUrl: string,
+    token: string,
+    options: {
+      needsProfileCompletion: boolean;
+      provider: "google" | "linkedin";
+      given_name: string;
+      family_name: string;
+      email: string;
+    },
+  ) {
+    const name = encodeURIComponent(
+      `${options.given_name} ${options.family_name}`,
+    );
+    const email = encodeURIComponent(options.email);
+    const tokenParam = `token=${encodeURIComponent(token)}`;
+    const common = `provider=${options.provider}&name=${name}&email=${email}`;
+
+    if (options.needsProfileCompletion) {
+      return `${frontendBaseUrl}/auth/oauth/complete-profile?${tokenParam}&${common}&firstTime=true`;
+    }
+
+    return `${frontendBaseUrl}/auth/oauth/success?${tokenParam}&${common}&firstTime=false`;
   }
 
   private async sendUserVerificationEmail(user: {
