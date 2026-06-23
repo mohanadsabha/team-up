@@ -12,6 +12,10 @@ export const createPaymentSchema = z.object({
   projectId: z.string().trim().uuid(),
 }) satisfies ZodType;
 
+export const confirmCheckoutSchema = z.object({
+  sessionId: z.string().trim().min(1),
+}) satisfies ZodType;
+
 export const updatePaymentStatusSchema = z.object({
   status: z.enum(["PENDING", "SUCCESS", "FAILED"]),
 }) satisfies ZodType;
@@ -24,6 +28,7 @@ export const getPaymentsQuerySchema = z.object({
 }) satisfies ZodType;
 
 export type CreatePayment = z.infer<typeof createPaymentSchema>;
+export type ConfirmCheckout = z.infer<typeof confirmCheckoutSchema>;
 export type UpdatePaymentStatus = z.infer<typeof updatePaymentStatusSchema>;
 export type GetPaymentsQuery = z.infer<typeof getPaymentsQuerySchema>;
 
@@ -76,4 +81,9 @@ export type PaymentStatsResponse = MessageResponse & {
   successfulPayments: number;
   pendingPayments: number;
   failedPayments: number;
+};
+
+export type ConfirmCheckoutResponse = MessageResponse & {
+  projectId: string;
+  payment: PaymentResponse;
 };

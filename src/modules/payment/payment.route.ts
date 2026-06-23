@@ -21,6 +21,10 @@ router.post(
   "/checkout",
   paymentController.createCheckoutSession.bind(paymentController),
 );
+router.post(
+  "/checkout/confirm",
+  paymentController.confirmCheckoutSession.bind(paymentController),
+);
 
 /**
  * ADMIN ENDPOINTS

@@ -3,6 +3,9 @@ import { zodValidation } from "../../utils/zod.util";
 import {
   CreatePayment,
   createPaymentSchema,
+  ConfirmCheckout,
+  confirmCheckoutSchema,
+  ConfirmCheckoutResponse,
   GetPaymentsQuery,
   getPaymentsQuerySchema,
   IdParam,
@@ -342,7 +345,7 @@ class PaymentController {
             quantity: 1,
           },
         ],
-        success_url: `${frontendUrl}/dashboard/projects-ideas/payment-success-page?session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${frontendUrl}/dashboard/projects-ideas/payment-success-page?session_id={CHECKOUT_SESSION_ID}&project_id=${project.id}`,
         cancel_url: `${frontendUrl}/dashboard/projects-ideas/payment-failed`,
         metadata: {
           buyerId: buyer.id,
@@ -374,6 +377,159 @@ class PaymentController {
     } catch (error) {
       next(error);
     }
+  }
+
+  async confirmCheckoutSession(
+    req: Request<StringObject, StringObject, ConfirmCheckout>,
+    res: Response<ConfirmCheckoutResponse>,
+    next: NextFunction,
+  ) {
+    try {
+      const payload = zodValidation(confirmCheckoutSchema, req.body);
+      const stripe = getStripeClient();
+      const checkoutSession = await stripe.checkout.sessions.retrieve(
+        payload.sessionId,
+      );
+
+      if (
+        checkoutSession.payment_status !== "paid" &&
+        checkoutSession.status !== "complete"
+      ) {
+        return next(new AppError("Payment is not completed yet.", 400));
+      }
+
+      const buyerId = checkoutSession.metadata?.buyerId;
+      const projectId = checkoutSession.metadata?.projectId;
+
+      if (!buyerId || !projectId) {
+        return next(new AppError("Missing checkout metadata.", 400));
+      }
+
+      if (buyerId !== req.user.userId) {
+        return next(new AppError("You are not allowed to confirm this payment.", 403));
+      }
+
+      const payment = await this.finalizeSuccessfulCheckout({
+        buyerId,
+        projectId,
+        referenceId: checkoutSession.id,
+        paymentAmount: checkoutSession.amount_total
+          ? checkoutSession.amount_total / 100
+          : undefined,
+        paymentMethod: checkoutSession.payment_method_types?.[0] ?? "stripe",
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Purchase confirmed successfully.",
+        projectId,
+        payment,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  private async finalizeSuccessfulCheckout(options: {
+    buyerId: string;
+    projectId: string;
+    referenceId: string;
+    paymentAmount?: number;
+    paymentMethod: string;
+  }) {
+    const project = await prisma.graduationProject.findUnique({
+      where: { id: options.projectId },
+      select: {
+        id: true,
+        createdById: true,
+        price: true,
+      },
+    });
+
+    if (!project) {
+      throw new AppError("Project not found.", 404);
+    }
+
+    const paymentAmount = options.paymentAmount ?? project.price;
+
+    return prisma.$transaction(async (tx) => {
+      let payment = await tx.payment.findFirst({
+        where: {
+          OR: [
+            { transactionId: options.referenceId },
+            { buyerId: options.buyerId, projectId: options.projectId },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const wasSuccessful = payment?.status === "SUCCESS";
+
+      if (!payment) {
+        payment = await tx.payment.create({
+          data: {
+            buyerId: options.buyerId,
+            projectId: options.projectId,
+            amount: paymentAmount,
+            status: "SUCCESS",
+            transactionId: options.referenceId,
+            paymentMethod: options.paymentMethod,
+            processedAt: new Date(),
+          },
+        });
+      } else if (!wasSuccessful) {
+        payment = await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: "SUCCESS",
+            amount: paymentAmount,
+            transactionId: payment.transactionId ?? options.referenceId,
+            paymentMethod: options.paymentMethod ?? payment.paymentMethod ?? "stripe",
+            processedAt: new Date(),
+          },
+        });
+      }
+
+      if (!wasSuccessful && payment.status === "SUCCESS") {
+        await tx.graduationProject.update({
+          where: { id: options.projectId },
+          data: { purchaseCount: { increment: 1 } },
+        });
+
+        await tx.user.update({
+          where: { id: project.createdById },
+          data: {
+            balance: {
+              increment: paymentAmount,
+            },
+          },
+        });
+      }
+
+      const existingSave = await tx.projectSave.findUnique({
+        where: {
+          userId_projectId: {
+            userId: options.buyerId,
+            projectId: options.projectId,
+          },
+        },
+      });
+
+      if (!existingSave) {
+        await tx.projectSave.create({
+          data: {
+            userId: options.buyerId,
+            projectId: options.projectId,
+          },
+        });
+        await tx.graduationProject.update({
+          where: { id: options.projectId },
+          data: { savesCount: { increment: 1 } },
+        });
+      }
+
+      return payment;
+    });
   }
 
   async webhook(req: RawWebhookRequest, res: Response, next: NextFunction) {
@@ -426,100 +582,14 @@ class PaymentController {
         return next(new AppError("Missing checkout metadata", 400));
       }
 
-      const project = await prisma.graduationProject.findUnique({
-        where: { id: projectId },
-        select: {
-          id: true,
-          createdById: true,
-          price: true,
-        },
-      });
-
-      if (!project) {
-        return next(new AppError("Project not found.", 404));
-      }
-
-      const referenceId = checkoutSession.id;
-      const paymentAmount = checkoutSession.amount_total
-        ? checkoutSession.amount_total / 100
-        : project.price;
-
-      await prisma.$transaction(async (tx) => {
-        let payment = await tx.payment.findFirst({
-          where: {
-            OR: [{ transactionId: referenceId }, { buyerId, projectId }],
-          },
-          orderBy: { createdAt: "desc" },
-        });
-
-        const wasSuccessful = payment?.status === "SUCCESS";
-
-        if (!payment) {
-          payment = await tx.payment.create({
-            data: {
-              buyerId,
-              projectId,
-              amount: paymentAmount,
-              status: "SUCCESS",
-              transactionId: referenceId,
-              paymentMethod:
-                checkoutSession.payment_method_types?.[0] ?? "stripe",
-              processedAt: new Date(),
-            },
-          });
-        } else if (!wasSuccessful) {
-          payment = await tx.payment.update({
-            where: { id: payment.id },
-            data: {
-              status: "SUCCESS",
-              amount: paymentAmount,
-              transactionId: payment.transactionId ?? referenceId,
-              paymentMethod:
-                checkoutSession.payment_method_types?.[0] ??
-                payment.paymentMethod ??
-                "stripe",
-              processedAt: new Date(),
-            },
-          });
-        }
-
-        if (!wasSuccessful && payment.status === "SUCCESS") {
-          await tx.graduationProject.update({
-            where: { id: projectId },
-            data: { purchaseCount: { increment: 1 } },
-          });
-
-          await tx.user.update({
-            where: { id: project.createdById },
-            data: {
-              balance: {
-                increment: paymentAmount,
-              },
-            },
-          });
-        }
-
-        const existingSave = await tx.projectSave.findUnique({
-          where: {
-            userId_projectId: {
-              userId: buyerId,
-              projectId,
-            },
-          },
-        });
-
-        if (!existingSave) {
-          await tx.projectSave.create({
-            data: {
-              userId: buyerId,
-              projectId,
-            },
-          });
-          await tx.graduationProject.update({
-            where: { id: projectId },
-            data: { savesCount: { increment: 1 } },
-          });
-        }
+      await this.finalizeSuccessfulCheckout({
+        buyerId,
+        projectId,
+        referenceId: checkoutSession.id ?? "",
+        paymentAmount: checkoutSession.amount_total
+          ? checkoutSession.amount_total / 100
+          : undefined,
+        paymentMethod: checkoutSession.payment_method_types?.[0] ?? "stripe",
       });
 
       res.status(200).json({ received: true });
