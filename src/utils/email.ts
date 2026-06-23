@@ -38,7 +38,9 @@ class Email {
       path.join(process.cwd(), "dist/templates", `${template}.pug`),
     ];
 
-    const templatePath = candidates.find((candidate) => fs.existsSync(candidate));
+    const templatePath = candidates.find((candidate) =>
+      fs.existsSync(candidate),
+    );
     if (!templatePath) {
       throw new Error(`Email template not found: ${template}.pug`);
     }
@@ -46,7 +48,7 @@ class Email {
     return templatePath;
   }
 
-  private createTransporter() {
+  private async createTransporter() {
     if (
       !process.env.EMAIL_HOST ||
       !process.env.EMAIL_USERNAME ||
@@ -60,7 +62,7 @@ class Email {
 
     const port = parseInt(process.env.EMAIL_PORT ?? "587", 10);
 
-    return nodemailer.createTransport({
+    const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port,
       secure: port === 465,
@@ -73,11 +75,21 @@ class Email {
       greetingTimeout: 8_000,
       socketTimeout: 8_000,
     });
+
+    try {
+      await transporter.verify();
+      console.log("SMTP connection successful");
+    } catch (error) {
+      console.error("SMTP verification failed:", error);
+      throw error;
+    }
+
+    return transporter;
   }
 
-  private getTransporter() {
+  private async getTransporter() {
     if (!this.transporter) {
-      this.transporter = this.createTransporter();
+      this.transporter = await this.createTransporter();
     }
 
     return this.transporter;
@@ -95,7 +107,8 @@ class Email {
       ...templateData,
     });
 
-    const info = await this.getTransporter().sendMail({
+    const trans = await this.getTransporter();
+    const info = await trans.sendMail({
       from: this.from,
       to: this.to,
       subject,
