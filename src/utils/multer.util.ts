@@ -2,6 +2,24 @@ import cloudinary from "../config/cloudinary";
 import { UploadApiErrorResponse, UploadApiResponse } from "cloudinary";
 import AppError from "./appError";
 
+type CloudinaryTransformation = {
+  width: number;
+  height: number;
+  crop: "limit";
+};
+
+const getUploadTransformation = (module: string): CloudinaryTransformation[] => {
+  if (module === "profile-picture") {
+    return [{ width: 1024, height: 1024, crop: "limit" }];
+  }
+
+  if (module === "platform-logo") {
+    return [{ width: 512, height: 512, crop: "limit" }];
+  }
+
+  return [{ width: 1280, height: 1280, crop: "limit" }];
+};
+
 export const uploadImageToCloudinary = (
   file: Express.Multer.File,
   module: string,
@@ -12,7 +30,7 @@ export const uploadImageToCloudinary = (
         folder: `${module}s`,
         public_id: `${module}-${Date.now()}`,
         format: "jpeg",
-        transformation: [{ width: 1280, height: 720, crop: "fill" }],
+        transformation: getUploadTransformation(module),
       },
       (error?: UploadApiErrorResponse, result?: UploadApiResponse) => {
         if (error || !result) {
